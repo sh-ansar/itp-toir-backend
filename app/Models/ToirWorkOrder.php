@@ -11,6 +11,7 @@ class ToirWorkOrder extends ToirRecord
 
     public function asset(): BelongsTo { return $this->belongsTo(ToirAsset::class, 'asset_id'); }
     public function project(): BelongsTo { return $this->belongsTo(ToirProject::class, 'project_id'); }
+    public function maintenancePlan(): BelongsTo { return $this->belongsTo(ToirMaintenancePlan::class, 'maintenance_plan_id'); }
     public function employee(): BelongsTo { return $this->belongsTo(ToirEmployee::class, 'employee_id'); }
     public function events(): HasMany { return $this->hasMany(ToirWorkOrderEvent::class, 'work_order_id')->orderByDesc('id'); }
 }

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ToirResourceController;
+use App\Http\Controllers\Api\ToirWorkflowController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('api/v1')->group(function (): void {
@@ -14,6 +15,8 @@ Route::prefix('api/v1')->group(function (): void {
     Route::middleware(['auth', 'toir.account.active'])->group(function (): void {
         Route::get('/overview', [ToirResourceController::class, 'overview']);
         Route::get('/schedule', [ToirResourceController::class, 'schedule']);
+        Route::post('/work-orders/{id}/transition', [ToirWorkflowController::class, 'transition'])->whereNumber('id');
+        Route::post('/plans/{id}/issue', [ToirWorkflowController::class, 'issuePlan'])->whereNumber('id');
         Route::get('/resources/{resource}', [ToirResourceController::class, 'index']);
         Route::post('/resources/{resource}', [ToirResourceController::class, 'store']);
         Route::get('/resources/{resource}/{id}', [ToirResourceController::class, 'show'])->whereNumber('id');

@@ -17,6 +17,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Carbon;
 
 class ToirResourceController extends Controller
 {
@@ -41,7 +43,7 @@ class ToirResourceController extends Controller
     ];
 
     private const RELATIONS = [
-        'work-orders' => ['asset', 'employee', 'project'],
+        'work-orders' => ['asset', 'employee', 'project', 'maintenancePlan'],
         'plans' => ['asset', 'employee'],
         'supplies' => ['asset'],
         'assets' => ['parent'],
@@ -132,11 +134,11 @@ class ToirResourceController extends Controller
                 'project_id' => ['nullable','integer',$belongs('toir_projects')],
                 'employee_id' => ['nullable','integer',$belongs('toir_employees')],
                 'type' => ['sometimes', Rule::in(['planned','emergency'])],
-                'status' => ['sometimes', Rule::in(['waiting','in_progress','overdue','closed'])],
+                'status' => $record ? ['prohibited'] : ['sometimes', Rule::in(['waiting'])],
                 'planned_start' => ['nullable','date'],
                 'planned_end' => ['nullable','date','after_or_equal:planned_start'],
-                'actual_start' => ['nullable','date'],
-                'actual_end' => ['nullable','date','after_or_equal:actual_start'],
+                'actual_start' => ['prohibited'],
+                'actual_end' => ['prohibited'],
                 'estimated_cost' => ['nullable','numeric','min:0'],
             ],
             'plans' => [
@@ -188,7 +190,7 @@ class ToirResourceController extends Controller
             });
         }
 
-        foreach (['status','category','asset_id','employee_id'] as $field) {
+        foreach (['status','category','asset_id','employee_id','maintenance_plan_id'] as $field) {
             $value = $request->query($field);
             if ($value !== null && $value !== '' && in_array($field, (new $model)->getConnection()->getSchemaBuilder()->getColumnListing((new $model)->getTable()), true)) {
                 $query->where($field, $value);
@@ -268,13 +270,68 @@ class ToirResourceController extends Controller
         return response()->json(['data' => $record->load(self::RELATIONS[$resource] ?? [])], 201);
     }
 
+    private function assertAssetParentIsValid(Company $company, ?ToirAsset $record, array $values): void
+    {
+        if (!array_key_exists('parent_id', $values) || $values['parent_id'] === null) {
+            return;
+        }
+
+        $next = (int) $values['parent_id'];
+        $seen = [];
+        while ($next > 0) {
+            if (isset($seen[$next]) || ($record && $next === $record->id)) {
+                throw ValidationException::withMessages([
+                    'parent_id' => 'Вложенность активов не может образовывать цикл.',
+                ]);
+            }
+
+            $seen[$next] = true;
+            $parent = ToirAsset::where('company_id', $company->id)->find($next);
+            if (!$parent) {
+                throw ValidationException::withMessages([
+                    'parent_id' => 'Родительский актив не найден в компании.',
+                ]);
+            }
+            $next = (int) ($parent->parent_id ?? 0);
+        }
+    }
+
     public function update(Request $request, string $resource, int $id): JsonResponse
     {
         $company = $this->company($request);
         $this->authorizeWrite($company, $resource, 'update');
         $model = $this->model($resource);
         $record = $model::query()->where('company_id',$company->id)->findOrFail($id);
+        if ($resource === 'work-orders' && $record->status === 'closed') {
+            return response()->json([
+                'message' => 'Закрытый наряд нельзя редактировать. Для исправления откройте новый наряд.',
+            ], 409);
+        }
         $values = $request->validate($this->rules($resource, $company, $record));
+        if ($resource === 'assets') {
+            $this->assertAssetParentIsValid($company, $record, $values);
+        }
+        if ($resource === 'work-orders') {
+            $start = $values['planned_start'] ?? $record->planned_start;
+            $end = $values['planned_end'] ?? $record->planned_end;
+            if ($start && $end && Carbon::parse($end)->lessThan(Carbon::parse($start))) {
+                throw ValidationException::withMessages([
+                    'planned_end' => 'Завершение работ не может быть раньше планового начала.',
+                ]);
+            }
+        }
+        if ($resource === 'plans' && $record->workOrders()->where('status', '!=', 'closed')->exists()) {
+            if (($values['status'] ?? null) === 'completed') {
+                return response()->json(['message'=>'Нельзя завершить план, пока есть незакрытый наряд.'],409);
+            }
+            foreach (['asset_id','employee_id','next_due_date','periodicity_days'] as $field) {
+                if (array_key_exists($field, $values) && (string) ($record->{$field} ?? '') !== (string) ($values[$field] ?? '')) {
+                    return response()->json([
+                        'message' => 'Нельзя менять актив, исполнителя или график, пока наряд по плану не закрыт.',
+                    ], 409);
+                }
+            }
+        }
         $before = $record->only(array_keys($values));
 
         DB::transaction(function () use ($record, $values, $before, $resource, $company, $request) {
@@ -300,8 +357,25 @@ class ToirResourceController extends Controller
         if ($resource === 'assets' && ToirAsset::where('parent_id',$id)->exists()) {
             return response()->json(['message'=>'Сначала удалите или переместите вложенные активы.'],409);
         }
-        if ($resource === 'assets' && (ToirMaintenancePlan::where('asset_id',$id)->exists() || ToirWorkOrder::where('asset_id',$id)->exists())) {
+        if ($resource === 'assets' && (ToirMaintenancePlan::where('asset_id',$id)->exists() || ToirWorkOrder::where('asset_id',$id)->exists() || ToirSupply::where('asset_id',$id)->exists())) {
             return response()->json(['message'=>'Актив используется в планах или нарядах.'],409);
+        }
+        if ($resource === 'employees' && (
+            ToirWorkOrder::where('employee_id',$id)->where('status','!=','closed')->exists()
+            || ToirMaintenancePlan::where('employee_id',$id)->exists()
+        )) {
+            return response()->json(['message'=>'Исполнитель используется в незакрытых нарядах или планах ТО.'],409);
+        }
+        if ($resource === 'projects' && ToirWorkOrder::where('project_id',$id)->exists()) {
+            return response()->json(['message'=>'Проект используется в нарядах.'],409);
+        }
+        if ($resource === 'plans' && $record->workOrders()->exists()) {
+            return response()->json(['message'=>'План ТО связан с нарядами; его нельзя архивировать.'],409);
+        }
+        if ($resource === 'work-orders' && (
+            $record->maintenance_plan_id !== null || $record->status === 'in_progress'
+        )) {
+            return response()->json(['message'=>'Активный наряд или наряд из плана ТО нельзя архивировать.'],409);
         }
         if ($resource === 'work-orders') {
             DB::transaction(function () use ($record, $company, $request) {

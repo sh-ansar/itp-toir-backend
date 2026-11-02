@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Company;
 use App\Models\ToirAsset;
+use App\Models\ToirEmployee;
 use App\Models\ToirWorkOrder;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -41,10 +42,15 @@ class ToirDomainTest extends TestCase
         ])->assertCreated()->json('data');
         $this->assertSame($company->id, $asset['company_id']);
 
+        $employee = ToirEmployee::forceCreate([
+            'company_id' => $company->id, 'name' => 'Maintenance technician',
+            'status' => 'active',
+        ]);
         $order = $this->postJson('/api/v1/resources/work-orders', [
             'title' => 'Replace compressor seal',
             'asset_id' => $asset['id'],
-            'type' => 'planned',
+            'employee_id' => $employee->id,
+            'type' => 'planned', 
             'status' => 'waiting',
         ])->assertCreated()->json('data');
 
@@ -54,8 +60,8 @@ class ToirDomainTest extends TestCase
             ->assertJsonPath('data.asset.code', 'EQ-42')
             ->assertJsonCount(1, 'data.events');
 
-        $this->patchJson('/api/v1/resources/work-orders/'.$order['id'], [
-            'status' => 'in_progress',
+        $this->postJson('/api/v1/work-orders/'.$order['id'].'/transition', [
+            'action' => 'start',
         ])->assertOk()->assertJsonPath('data.status', 'in_progress');
 
         $this->getJson('/api/v1/resources/work-orders/'.$order['id'])
