@@ -208,7 +208,7 @@ Presence \`toir.company.{companyId}.presence\` аналогично доступ
 \`REVERB_SERVER_PORT=18123\`, \`REVERB_HOST=127.0.0.1\`,
 \`REVERB_PORT=18123\`, \`REVERB_SCHEME=http\`.
 \`REVERB_APP_ID/KEY/SECRET\` генерируются **только на сервере**.
-\`REVERB_ALLOWED_ORIGINS=https://platform.itpmining.kz\`.
+\`REVERB_ALLOWED_ORIGINS=platform.itpmining.kz\`.
 Запрещено коммитить \`.env\` или конфигурации с реальными ключами.
 
 Тесты \`ToirRealtimeTest\` охватывают tenant-scoped приватную авторизацию,
