@@ -24,6 +24,11 @@ class InviteToirUser extends Command
 
     public function handle(): int
     {
+        if (in_array(config('mail.default'), ['log', 'array'], true) && !app()->environment('testing')) {
+            $this->error('Configure a real SMTP mail transport before inviting users.');
+            return self::FAILURE;
+        }
+
         $input = [
             'email' => Str::lower(trim((string) $this->option('email'))),
             'name' => trim((string) $this->option('name')),

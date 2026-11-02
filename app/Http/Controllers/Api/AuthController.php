@@ -142,6 +142,12 @@ class AuthController extends Controller
         $payload = $request->validate(['email' => ['required', 'email:rfc', 'max:255']]);
         $email = Str::lower(trim($payload['email']));
 
+        if (in_array(config('mail.default'), ['log', 'array'], true) && !app()->environment('testing')) {
+            return response()->json([
+                'message' => 'Восстановление пароля по почте временно недоступно. Обратитесь к администратору.',
+            ], 503);
+        }
+
         // Do not reveal whether this mailbox belongs to a user.
         $user = User::where('email', $email)->where('is_active', true)->first();
         if ($user) {
