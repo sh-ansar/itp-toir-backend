@@ -70,7 +70,7 @@ SMTP необходимо настроить отдельно. При транс
 
 ## Развёртывание
 
-Серверный staging изолирован в \`C:\deploy\toir\backend\current\` и \`C:\deploy\toir\site\current\`. **Нельзя** копировать .env или базу из других проектов. Два отдельных Windows-сервиса \`ITP-TOIR-FastCGI\` (127.0.0.1:18122) и \`ITP-TOIR-HTTP\` (127.0.0.1:18120) доступны через единственный префикс \`/toir\` на HTTPS-хосте. Сеансовая cookie именуется \`itp_toir_session\`, \`SESSION_PATH=/toir\`, secure=true, HttpOnly. Временный хост не является SSO Portal.
+Серверный staging изолирован в \`C:\deploy\toir\backend\current\` и \`C:\deploy\toir\site\current\`. **Нельзя** копировать .env или базу из других проектов. Два отдельных Windows-сервиса \`ITP-TOIR-FastCGI\` (127.0.0.1:18122) и \`ITP-TOIR-HTTP\` (127.0.0.1:18120) доступны через единственный префикс \`/toir\` на HTTPS-хосте. Сеансовая cookie именуется \`itp_toir_session\`, \`SESSION_PATH=/mro\`, secure=true, HttpOnly. Временный хост не является SSO Portal.
 
 Развёртывание: \`php artisan migrate --force\` **только на отдельной БД ТОИР после резервного копирования**. На серверах с PostgreSQL обновить независимые параметры подключения и прогнать миграции на копии, прежде чем переключить prod. Включить реальный SMTP и резервное копирование. Не публиковать пароль и APP_KEY в коммитах.
 
