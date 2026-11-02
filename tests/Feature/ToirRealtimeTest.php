@@ -78,7 +78,10 @@ final class ToirRealtimeTest extends TestCase
             'socket_id'=>'1234.5678',
             'channel_name'=>$presence,
         ])->assertOk()->assertJsonStructure(['auth','channel_data']);
+        config(['app.url'=>'https://platform.itpmining.kz/mro']);
+        $this->withServerVariables(['HTTP_HOST'=>'127.0.0.1:18120']);
         $this->getJson('/api/v1/realtime/config')->assertOk()
+            ->assertJsonPath('host','platform.itpmining.kz')
             ->assertJsonPath('enabled',true)->assertJsonPath('key','test-public-key')
             ->assertJsonPath('channel','toir.company.'.$c->id.'.user.'.$a->id)
             ->assertJsonMissing(['test-private-secret']);
