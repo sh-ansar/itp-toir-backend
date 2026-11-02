@@ -36,6 +36,18 @@ class AuthController extends Controller
 
         /** @var User $user */
         $user = Auth::user();
+
+        // New users must activate their mailbox using their private invite link.
+        if (!$user->email_verified_at) {
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            throw ValidationException::withMessages([
+                'email' => ['Email address has not been verified. Use the invitation link.'],
+            ]);
+        }
+
         $company = $user->activeCompanies()->orderBy('companies.id')->first();
 
         if (!$company) {
@@ -160,6 +172,7 @@ class AuthController extends Controller
             $user->forceFill([
                 'password' => Hash::make($password),
                 'remember_token' => Str::random(60),
+                'email_verified_at' => $user->email_verified_at ?: now(),
             ])->save();
 
             DB::table('sessions')->where('user_id', $user->id)->delete();
