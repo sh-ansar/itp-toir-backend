@@ -15,13 +15,24 @@ final class WorkToirChatOutbox extends Command
 
     public function handle(): int
     {
+        // SQLite DEFERRED transactions can fail while upgrading a read lock
+        // to a write lock under concurrent session and chat writes.
+        // Only this worker claims IMMEDIATE transactions.
+        if(config('database.default')==='sqlite'){
+            config([
+                'database.connections.sqlite.transaction_mode'=>'IMMEDIATE',
+                'database.connections.sqlite.busy_timeout'=>5000,
+            ]);
+        }
         $lock=fopen(storage_path('framework/toir-chat-outbox.lock'),'c');
         if(!$lock || !flock($lock,LOCK_EX|LOCK_NB)){
             $this->error('TOIR outbox worker already running');
             return self::FAILURE;
         }
         try{
+            $busyErrors=0;
             do{
+                try {
                 $row=DB::transaction(function(){
                     $row=DB::table('toir_chat_outbox')
                         ->where('available_at','<=',now())
@@ -61,6 +72,23 @@ final class WorkToirChatOutbox extends Command
                         if($this->option('once'))$this->warn('Event retained; retry scheduled');
                     }
                 }elseif(!$this->option('once'))usleep(250000);
+                $busyErrors=0;
+                }catch(\Illuminate\Database\QueryException $e){
+                    if(!str_contains(strtolower($e->getMessage()),'database is locked')){
+                        throw $e;
+                    }
+                    $busyErrors++;
+                    if($busyErrors===1||$busyErrors%50===0){
+                        Log::warning('TOIR chat outbox delayed: SQLite write lock',[
+                            'consecutive_busy_attempts'=>$busyErrors,
+                        ]);
+                    }
+                    if($this->option('once')){
+                        $this->warn('SQLite busy; outbox event retained for retry');
+                        break;
+                    }
+                    usleep(min(750000,100000+$busyErrors*25000));
+                }
             }while(!$this->option('once'));
         }finally{flock($lock,LOCK_UN);fclose($lock);}
         return self::SUCCESS;
