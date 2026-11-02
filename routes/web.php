@@ -6,6 +6,12 @@ use App\Http\Controllers\Api\ToirWorkflowController;
 use App\Http\Controllers\Api\ToirStockController;
 use App\Http\Controllers\Api\ToirChatController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Broadcast;
+use App\Http\Controllers\Api\ToirRealtimeController;
+
+require __DIR__.'/channels.php';
+
+Broadcast::routes(['middleware'=>['auth','toir.account.active'], 'prefix'=>'api/v1']);
 
 Route::prefix('api/v1')->group(function (): void {
     Route::get('/health', fn () => response()->json([
@@ -16,6 +22,7 @@ Route::prefix('api/v1')->group(function (): void {
 
     Route::middleware(['auth', 'toir.account.active'])->group(function (): void {
         Route::get('/overview', [ToirResourceController::class, 'overview']);
+        Route::get('/realtime/config', [ToirRealtimeController::class, 'config']);
         Route::get('/schedule', [ToirResourceController::class, 'schedule']);
         // Isolated stock and work-order material ledger.
         Route::get('/stock/items', [ToirStockController::class, 'index']);
@@ -36,6 +43,7 @@ Route::prefix('api/v1')->group(function (): void {
         Route::post('/chats/{id}/members', [ToirChatController::class, 'addMember'])->whereNumber('id');
         Route::get('/chats/{id}/messages', [ToirChatController::class, 'messages'])->whereNumber('id');
         Route::post('/chats/{id}/messages', [ToirChatController::class, 'send'])->whereNumber('id');
+        Route::post('/chats/{id}/typing', [ToirChatController::class, 'typing'])->whereNumber('id')->middleware('throttle:90,1');
         Route::post('/chats/{id}/receipts', [ToirChatController::class, 'receipt'])->whereNumber('id');
         Route::patch('/chats/{id}/messages/{messageId}', [ToirChatController::class, 'modify'])->whereNumber('id')->whereNumber('messageId');
         Route::delete('/chats/{id}/messages/{messageId}', [ToirChatController::class, 'destroy'])->whereNumber('id')->whereNumber('messageId');

@@ -19,3 +19,6 @@
 /composer.phar
 /.idea
 /.vscode
+
+# Private runtime locks for independent Reverb/outbox tasks
+/storage/framework/toir-chat-outbox.lock

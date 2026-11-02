@@ -8,6 +8,7 @@ use App\Models\ToirChat;
 use App\Models\ToirChatMember;
 use App\Models\ToirChatMessage;
 use App\Models\ToirChatReceipt;
+use App\Services\ToirChatDeliveryService;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -169,6 +170,7 @@ final class ToirChatController extends Controller
                 $member->is_admin=$id===$user->id;
                 $member->save();
             }
+            ToirChatDeliveryService::changed($chat,'chat_created',null,['creator_id'=>$user->id]);
             return [$chat,true];
         },3);
         return response()->json(['data'=>$this->row($result[0],$user->id)],$result[1]?201:200);
@@ -186,7 +188,10 @@ final class ToirChatController extends Controller
         $company=$this->company($request);
         [, $member]=$this->chat($company,$id,$request->user());
         $member->archived_at=$member->archived_at?null:now();
-        $member->save();
+        DB::transaction(function()use($member){
+            $member->save();
+            ToirChatDeliveryService::changed($member->chat,'archived',null,['user_id'=>$member->user_id]);
+        });
         return response()->json(['archived'=>(bool)$member->archived_at]);
     }
 
@@ -195,8 +200,11 @@ final class ToirChatController extends Controller
         $company=$this->company($request);
         [$chat,$member]=$this->chat($company,$id,$request->user());
         abort_unless($chat->kind==='channel',409,'Нельзя выйти из личного чата.');
-        $member->left_at=now();
-        $member->save();
+        DB::transaction(function()use($member,$chat){
+            $member->left_at=now();
+            $member->save();
+            ToirChatDeliveryService::changed($chat,'member_left',null,['user_id'=>$member->user_id]);
+        });
         return response()->json(['message'=>'Вы вышли из канала.']);
     }
 
@@ -227,7 +235,19 @@ final class ToirChatController extends Controller
             $m->joined_after_message_id=(int)($chat->messages()->max('id')??0);
             $m->save();
         }
+        ToirChatDeliveryService::changed($chat,'member_added',null,['user_id'=>$userId]);
         return response()->json(['data'=>$this->row($chat,$request->user()->id)]);
+    }
+
+    public function typing(Request $request, int $id): JsonResponse
+    {
+        $company=$this->company($request);
+        [$chat]=$this->chat($company,$id,$request->user());
+        ToirChatDeliveryService::changed($chat,'typing',null,[
+            'user_id'=>$request->user()->id,
+            'expires'=>now()->addSeconds(4)->timestamp,
+        ]);
+        return response()->json(['ok'=>true]);
     }
 
     public function messages(Request $request, int $id): JsonResponse
@@ -235,11 +255,14 @@ final class ToirChatController extends Controller
         $company=$this->company($request);
         [$chat,$member]=$this->chat($company,$id,$request->user());
         $after=max(0,(int)$request->query('after',0));
+        $before=max(0,(int)$request->query('before',0));
+        abort_if($after && $before,422,'Укажите только один курсор.');
         $q=$chat->messages()->where('company_id',$company->id)
             ->where('id','>',(int)$member->joined_after_message_id);
         if($after) {
             $data=$q->where('id','>',$after)->orderBy('id')->limit(100)->get();
         }else{
+            if($before)$q->where('id','<',$before);
             $data=$q->orderByDesc('id')->limit(60)->get()->reverse()->values();
         }
         return response()->json(['data'=>$data->map(fn($m)=>$this->messageData($m,(int)$member->joined_after_message_id))->all()]);
@@ -260,7 +283,12 @@ final class ToirChatController extends Controller
             if(!empty($input['client_token'])){
                 $existing=$chat->messages()->where('user_id',$request->user()->id)
                     ->where('client_token',$input['client_token'])->first();
-                if($existing)return [$existing,false];
+                if($existing){
+                    abort_if($existing->body!==$body ||
+                        (int)$existing->reply_to_id!==(int)($input['reply_to_id']??0),409,
+                        'Токен сообщения повторно использован с другим содержимым.');
+                    return [$existing,false];
+                }
             }
             if(!empty($input['reply_to_id'])){
                 abort_unless(ToirChatMessage::where('company_id',$company->id)
@@ -287,6 +315,7 @@ final class ToirChatController extends Controller
                 $receipt->save();
             }
             $chat->touch();
+            ToirChatDeliveryService::changed($chat,'message',$msg,['user_id'=>$request->user()->id]);
             return [$msg,true];
         },3);
         return response()->json(['data'=>$this->messageData($data[0],(int)$member->joined_after_message_id)],$data[1]?201:200);
@@ -304,9 +333,18 @@ final class ToirChatController extends Controller
         $q=ToirChatReceipt::where('company_id',$company->id)
             ->where('chat_id',$id)->where('user_id',$request->user()->id)
             ->whereIn('message_id',$input['messages']);
-        $changes=$input['kind']==='read'
-            ?$q->whereNull('read_at')->update(['read_at'=>now(),'delivered_at'=>now()])
-            :$q->whereNull('delivered_at')->update(['delivered_at'=>now()]);
+        $changes=DB::transaction(function()use($q,$input,$company,$id,$request){
+            $count=$input['kind']==='read'
+                ?$q->whereNull('read_at')->update(['read_at'=>now(),'delivered_at'=>now()])
+                :$q->whereNull('delivered_at')->update(['delivered_at'=>now()]);
+            if($count){
+                $chat=ToirChat::where('company_id',$company->id)->findOrFail($id);
+                ToirChatDeliveryService::changed($chat,$input['kind'],null,[
+                    'user_id'=>$request->user()->id,'messages'=>$input['messages'],
+                ]);
+            }
+            return $count;
+        },3);
         $unread=ToirChatReceipt::where('company_id',$company->id)->where('chat_id',$id)
             ->where('user_id',$request->user()->id)->whereNull('read_at')->count();
         return response()->json(['changed'=>$changes,'unread_count'=>$unread]);
@@ -324,9 +362,12 @@ final class ToirChatController extends Controller
         $v=$request->validate(['body'=>['required','string','max:2048']]);
         $body=trim($v['body']);
         abort_if(!$body,422,'Нельзя сохранить пустое сообщение.');
-        $msg->body=$body;
-        $msg->edited_at=now();
-        $msg->save();
+        DB::transaction(function()use($msg,$body,$company){
+            $msg->body=$body;
+            $msg->edited_at=now();
+            $msg->save();
+            ToirChatDeliveryService::changed(ToirChat::where('company_id',$company->id)->findOrFail($msg->chat_id),'edited',$msg);
+        },3);
         return response()->json(['data'=>$this->messageData($msg)]);
     }
 
@@ -338,7 +379,12 @@ final class ToirChatController extends Controller
             ->where('chat_id',$id)->findOrFail($messageId);
         abort_unless($msg->user_id===$request->user()->id,403,'Удалять можно только свои сообщения.');
         abort_if($msg->created_at->lt(now()->subMinutes(15)),409,'Время удаления истекло.');
-        if(!$msg->deleted_at){$msg->deleted_at=now();$msg->body='';$msg->save();}
+        if(!$msg->deleted_at){
+            DB::transaction(function()use($msg,$company){
+                $msg->deleted_at=now();$msg->body='';$msg->save();
+                ToirChatDeliveryService::changed(ToirChat::where('company_id',$company->id)->findOrFail($msg->chat_id),'deleted',$msg);
+            },3);
+        }
         return response()->json(['data'=>$this->messageData($msg)]);
     }
 }
