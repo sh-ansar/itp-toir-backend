@@ -158,7 +158,7 @@ class ToirResourceController extends Controller
                 'quantity' => ['sometimes','numeric','min:0.001'],
                 'unit' => ['sometimes','string','max:30'],
                 'unit_price' => ['nullable','numeric','min:0'],
-                'status' => ['sometimes',Rule::in(['requested','ordered','delivered','cancelled'])],
+                'status' => ['sometimes',Rule::in(['requested','ordered','cancelled'])],
                 'requested_at' => ['nullable','date'],
             ],
             'tenders' => [

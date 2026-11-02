@@ -56,6 +56,9 @@ final class ToirWorkflowService
                 throw new HttpException(409, 'Недопустимый переход статуса наряда.');
             }
 
+            if ($action === 'complete' && $order->materials()->where('quantity_reserved', '>', 0)->exists()) {
+                throw new HttpException(409, 'Сначала спишите или снимите резерв материалов перед закрытием наряда.');
+            }
             if ($action === 'start') {
                 $errors = [];
                 if (!$order->asset_id) $errors['asset_id'] = 'Для начала работ выберите актив.';
