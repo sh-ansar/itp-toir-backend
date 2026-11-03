@@ -37,6 +37,7 @@ final class ToirAcceptanceSeedTest extends TestCase
         }
         $this->assertSame(0,DB::table('users')->count(),'QA never creates accounts');
         $this->assertSame(16,DB::table('toir_assets')->where('company_id',$company->id)->count());
+        $this->assertSame(7,DB::table('toir_work_order_events')->where('company_id',$company->id)->count());
     }
 
     public function test_seeded_data_is_readable_from_real_api_and_chat_for_owner(): void

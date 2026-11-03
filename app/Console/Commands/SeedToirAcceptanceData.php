@@ -169,6 +169,9 @@ final class SeedToirAcceptanceData extends Command
                     'planned_start'=>$day->copy()->addDays(5)->setTime(8,0)->toDateTimeString(),
                     'planned_end'=>$day->copy()->addDays(5)->setTime(10,0)->toDateTimeString(),
                     'duration_minutes'=>120]);
+                $add('toir_work_order_events',['work_order_id'=>$planned,'action'=>'qa_seed'],[
+                    'message'=>'[ТЕСТ] Регламентный наряд создан для проверки чек-листа.',
+                    'changes'=>json_encode(['dataset'=>'QA26','status'=>'waiting'],JSON_UNESCAPED_UNICODE)]);
                 $checkSteps=DB::table('toir_maintenance_steps')->where('company_id',$id)
                     ->where('maintenance_plan_id',$plans[0])->orderBy('position')->get();
                 foreach($checkSteps as $step){
