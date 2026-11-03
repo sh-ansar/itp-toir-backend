@@ -89,20 +89,40 @@ final class ToirCompanyMembersController extends Controller
                 ['target_user_id'=>$user->id,'role'=>$data['role']]);
             return $user;
         });
-        // Verified existing users already have credentials; send a notification only to new unverified users.
+        // Membership can be saved while mail transport fails. Always report that distinction.
         if($user->email_verified_at){
             try{
                 $user->notify(new ToirCompanyAccessNotification($company->name));
             }catch(\Throwable $exception){
                 report($exception);
-                return response()->json(['message'=>'Доступ предоставлен, но email-уведомление не доставлено.'],202);
+                return response()->json([
+                    'data'=>['id'=>$user->id,'email'=>$email,'email_sent'=>false],
+                    'message'=>'Доступ предоставлен, но email-уведомление не отправлено.',
+                ],202);
             }
-        }else{
-            $status=Password::sendResetLink(['email'=>$email]);
-            if($status!==Password::RESET_LINK_SENT)
-                return response()->json(['message'=>'Участник добавлен, но письмо не доставлено. Повторите отправку из карточки.'],202);
+            return response()->json([
+                'data'=>['id'=>$user->id,'email'=>$email,'email_sent'=>false],
+                'message'=>'Доступ предоставлен. Пользователь уведомлён по email.',
+            ],201);
         }
-        return response()->json(['data'=>['id'=>$user->id,'email'=>$email,'email_sent'=>!$user->email_verified_at]],201);
+        try{
+            $status=Password::sendResetLink(['email'=>$email]);
+        }catch(\Throwable $exception){
+            report($exception);
+            return response()->json([
+                'data'=>['id'=>$user->id,'email'=>$email,'email_sent'=>false],
+                'message'=>'Участник добавлен, но письмо не отправлено. Повторите отправку из карточки.',
+            ],202);
+        }
+        if($status!==Password::RESET_LINK_SENT)
+            return response()->json([
+                'data'=>['id'=>$user->id,'email'=>$email,'email_sent'=>false],
+                'message'=>'Участник добавлен, но активация не отправлена. Повторите позже.',
+            ],202);
+        return response()->json([
+            'data'=>['id'=>$user->id,'email'=>$email,'email_sent'=>true],
+            'message'=>'Участник добавлен. Ссылка активации отправлена.',
+        ],201);
     }
 
     public function update(Request $request,int $id): JsonResponse
@@ -140,7 +160,12 @@ final class ToirCompanyMembersController extends Controller
         if(!$this->mailEnabled())return response()->json(['message'=>'SMTP не настроен.'],503);
         $user=$company->users()->where('users.id',$id)->wherePivot('is_active',true)->firstOrFail();
         if($user->email_verified_at)throw ValidationException::withMessages(['email'=>'Почта уже подтверждена.']);
-        $status=Password::sendResetLink(['email'=>$user->email]);
+        try{
+            $status=Password::sendResetLink(['email'=>$user->email]);
+        }catch(\Throwable $exception){
+            report($exception);
+            return response()->json(['message'=>'Не удалось отправить письмо через SMTP.'],503);
+        }
         if($status===Password::RESET_THROTTLED)
             return response()->json(['message'=>'Письмо уже недавно отправлено. Повторите позже.'],429);
         if($status!==Password::RESET_LINK_SENT)
