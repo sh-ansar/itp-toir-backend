@@ -1,4 +1,4 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <#
   Copy only SMTP transport settings from an existing HRM .env into TOIR .env.
   Read-only unless -Apply is given. Never prints passwords or MAIL_URL.
