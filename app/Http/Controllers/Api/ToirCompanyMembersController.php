@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Password;
 use App\Notifications\ToirCompanyAccessNotification;
+use App\Services\ToirMailReadiness;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -42,7 +43,7 @@ final class ToirCompanyMembersController extends Controller
 
     private function mailEnabled(): bool
     {
-        return app()->environment('testing') || !in_array(config('mail.default'),['log','array'],true);
+        return app(ToirMailReadiness::class)->configured();
     }
 
     public function mailStatus(Request $request): JsonResponse
