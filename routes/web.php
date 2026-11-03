@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\ToirChatController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Broadcast;
 use App\Http\Controllers\Api\ToirRealtimeController;
+use App\Http\Controllers\Api\ToirOperationsController;
 
 require __DIR__.'/channels.php';
 
@@ -22,6 +23,21 @@ Route::prefix('api/v1')->group(function (): void {
 
     Route::middleware(['auth', 'toir.account.active'])->group(function (): void {
         Route::get('/overview', [ToirResourceController::class, 'overview']);
+        // Equipment hierarchy, measured condition, crew calendar and explainable risks.
+        Route::get('/operations/asset-tree', [ToirOperationsController::class, 'assetTree']);
+        Route::get('/operations/risk', [ToirOperationsController::class, 'risk']);
+        Route::get('/operations/forecast', [ToirOperationsController::class, 'forecast']);
+        Route::post('/operations/generate', [ToirOperationsController::class, 'generate']);
+        Route::get('/operations/crews', [ToirOperationsController::class, 'crews']);
+        Route::post('/operations/crews', [ToirOperationsController::class, 'createCrew']);
+        Route::patch('/operations/crews/{id}', [ToirOperationsController::class, 'updateCrew'])->whereNumber('id');
+        Route::post('/operations/crews/{id}/members', [ToirOperationsController::class, 'addCrewMember'])->whereNumber('id');
+        Route::delete('/operations/crews/{id}/members/{employeeId}', [ToirOperationsController::class, 'removeCrewMember'])->whereNumber('id')->whereNumber('employeeId');
+        Route::get('/operations/shifts', [ToirOperationsController::class, 'shifts']);
+        Route::post('/operations/shifts/generate', [ToirOperationsController::class, 'generateShifts']);
+        Route::delete('/operations/shifts/{id}', [ToirOperationsController::class, 'cancelShift'])->whereNumber('id');
+        Route::get('/operations/assets/{id}/readings', [ToirOperationsController::class, 'readings'])->whereNumber('id');
+        Route::post('/operations/assets/{id}/readings', [ToirOperationsController::class, 'recordReading'])->whereNumber('id');
         Route::get('/realtime/config', [ToirRealtimeController::class, 'config']);
         Route::get('/schedule', [ToirResourceController::class, 'schedule']);
         // Isolated stock and work-order material ledger.

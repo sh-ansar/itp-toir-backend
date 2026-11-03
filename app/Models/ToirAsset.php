@@ -11,4 +11,6 @@ class ToirAsset extends ToirRecord
 
     public function parent(): BelongsTo { return $this->belongsTo(self::class, 'parent_id'); }
     public function children(): HasMany { return $this->hasMany(self::class, 'parent_id'); }
+    public function readings(): HasMany { return $this->hasMany(ToirAssetReading::class,'asset_id'); }
+    public function maintenancePlans(): HasMany { return $this->hasMany(ToirMaintenancePlan::class,'asset_id'); }
 }

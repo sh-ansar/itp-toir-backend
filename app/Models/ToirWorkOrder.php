@@ -15,4 +15,5 @@ class ToirWorkOrder extends ToirRecord
     public function employee(): BelongsTo { return $this->belongsTo(ToirEmployee::class, 'employee_id'); }
     public function events(): HasMany { return $this->hasMany(ToirWorkOrderEvent::class, 'work_order_id')->orderByDesc('id'); }
     public function materials(): HasMany { return $this->hasMany(ToirWorkOrderMaterial::class, 'work_order_id'); }
+    public function crew(): BelongsTo {return $this->belongsTo(ToirCrew::class,'crew_id');}
 }

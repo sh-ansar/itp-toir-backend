@@ -6,6 +6,7 @@ use App\Models\Company;
 use App\Models\ToirMaintenancePlan;
 use App\Models\ToirWorkOrder;
 use App\Models\ToirWorkOrderEvent;
+use App\Models\ToirCrew;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +15,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 final class ToirWorkflowService
 {
+    public function __construct(private readonly ToirPlanningService $planning) {}
     private function role(Company $company): string
     {
         return (string) $company->pivot->role;
@@ -26,6 +28,12 @@ final class ToirWorkflowService
             return;
         }
         if ($action !== 'reopen' && $role === 'engineer') {
+            return;
+        }
+        if ($action !== 'reopen' && $role === 'technician' && $order->crew_id &&
+            ToirCrew::where('company_id',$company->id)->whereKey($order->crew_id)
+                ->whereHas('members',fn($q)=>$q->where('toir_employees.user_id',$request->user()->id)
+                    ->where('toir_employees.status','active'))->exists()){
             return;
         }
         if ($action !== 'reopen' && $role === 'technician' &&
@@ -62,9 +70,14 @@ final class ToirWorkflowService
             if ($action === 'start') {
                 $errors = [];
                 if (!$order->asset_id) $errors['asset_id'] = 'Для начала работ выберите актив.';
-                if (!$order->employee_id) $errors['employee_id'] = 'Для начала работ назначьте исполнителя.';
+                if (!$order->employee_id && !$order->crew_id) $errors['employee_id'] = 'Для начала работ назначьте исполнителя.';
                 if ($order->asset_id && !$order->asset()->whereNotIn('status', ['retired'])->exists()) {
                     $errors['asset_id'] = 'Актив списан или недоступен для обслуживания.';
+                }
+                if ($order->crew_id && !ToirCrew::where('company_id',$company->id)
+                    ->whereKey($order->crew_id)->where('status','active')
+                    ->whereHas('members',fn($q)=>$q->where('toir_employees.status','active'))->exists()){
+                    $errors['crew_id']='Назначьте действующую бригаду с активными участниками.';
                 }
                 if ($order->employee_id && !$order->employee()->where('status', 'active')->exists()) {
                     $errors['employee_id'] = 'Назначенный исполнитель неактивен.';
@@ -107,14 +120,40 @@ final class ToirWorkflowService
             if ($action === 'complete' && $order->maintenance_plan_id !== null && $order->scheduled_for !== null) {
                 $plan = ToirMaintenancePlan::where('company_id', $company->id)
                     ->lockForUpdate()->find($order->maintenance_plan_id);
-                if ($plan && $plan->next_due_date === $order->scheduled_for) {
-                    $plan->next_due_date = Carbon::parse($order->scheduled_for)
-                        ->addDays((int) $plan->periodicity_days)->toDateString();
-                    $plan->save();
+                if($plan){
+                    $changed=false;
+                    // A meter-based service must not push the calendar due date
+                    // unless it also fulfils the current calendar cycle.
+                    if($plan->next_due_date === $order->scheduled_for){
+                        $next=Carbon::parse($order->scheduled_for)
+                            ->addDays((int)$plan->periodicity_days);
+                        for($step=0;$step<120;$step++){
+                            $complete=ToirWorkOrder::where('company_id',$company->id)
+                                ->where('maintenance_plan_id',$plan->id)
+                                ->whereDate('scheduled_for',$next->toDateString())
+                                ->where('status','closed')->exists();
+                            if(!$complete)break;
+                            $next->addDays((int)$plan->periodicity_days);
+                        }
+                        $plan->next_due_date=$next->toDateString();
+                        $changed=true;
+                    }
+                    $thresholdMatches=$order->trigger_hours!==null
+                        && $plan->next_due_hours!==null
+                        && (float)$order->trigger_hours >= (float)$plan->next_due_hours;
+                    if($plan->interval_hours!==null && ($changed || $thresholdMatches)){
+                        $asset=$plan->asset()->where('company_id',$company->id)->first();
+                        if($asset){
+                            $plan->next_due_hours=round((float)$asset->operating_hours+
+                                (float)$plan->interval_hours,2);
+                            $changed=true;
+                        }
+                    }
+                    if($changed)$plan->save();
                 }
             }
 
-            return $order->refresh()->load(['asset', 'employee', 'project', 'maintenancePlan', 'events']);
+            return $order->refresh()->load(['asset', 'employee', 'project', 'maintenancePlan', 'crew','events']);
         }, 3);
     }
 
@@ -147,7 +186,7 @@ final class ToirWorkflowService
                 ->first();
 
             if ($existing) {
-                return ['order' => $existing->load(['asset','employee','project','maintenancePlan','events']), 'created' => false];
+                return ['order' => $existing->load(['asset','employee','project','maintenancePlan','crew','events']), 'created' => false];
             }
 
             $order = new ToirWorkOrder();
@@ -160,9 +199,23 @@ final class ToirWorkflowService
             $order->status = 'waiting';
             $order->asset_id = $plan->asset_id;
             $order->employee_id = $plan->employee_id;
+            $order->crew_id = $plan->crew_id;
+            $order->duration_minutes = $plan->duration_minutes;
+            $order->trigger_source = 'calendar';
             $order->initiator_id = $request->user()->id;
-            $order->planned_start = $cycle.' 09:00:00';
-            $order->planned_end = $cycle.' 17:00:00';
+            $duration=(int)$plan->duration_minutes;
+            if($plan->crew_id){
+                $slot=$this->planning->availableSlot($company->id,(int)$plan->crew_id,$cycle,$duration);
+                if(!$slot){
+                    throw ValidationException::withMessages(['crew_id'=>
+                        'Создайте подтверждённую смену бригады со свободным временем на дату ТО.']);
+                }
+                [$order->planned_start,$order->planned_end]=$slot;
+            }else{
+                $order->planned_start=$cycle.' 09:00:00';
+                $order->planned_end=Carbon::parse($order->planned_start)
+                    ->addMinutes($duration)->toDateTimeString();
+            }
             $order->save();
 
             $order->number = 'НЗ-'.str_pad((string) $order->id, 6, '0', STR_PAD_LEFT);
@@ -178,7 +231,7 @@ final class ToirWorkflowService
                 'scheduled_for' => $cycle,
             ]);
 
-            return ['order' => $order->load(['asset','employee','project','maintenancePlan','events']), 'created' => true];
+            return ['order' => $order->load(['asset','employee','project','maintenancePlan','crew','events']), 'created' => true];
         }, 3);
     }
 
