@@ -1,0 +1,52 @@
+name: TOIR Windows operations checks
+
+on:
+  push:
+    branches:
+      - feature/toir-foundation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-powershell:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse all PowerShell operations scripts
+        shell: powershell
+        run: |
+          Get-ChildItem -Path ops -Filter '*.ps1' -File | ForEach-Object {
+            $tokens = $null
+            $parseErrors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$parseErrors) | Out-Null
+            if ($parseErrors -and $parseErrors.Count -gt 0) {
+              $parseErrors | ForEach-Object { Write-Host ($_.Message) }
+              throw "PowerShell syntax error in $($_.Name)"
+            }
+            Write-Host "PARSE_OK $($_.Name)"
+          }
+      - name: Verify HRM to TOIR SMTP dry-run is non-destructive
+        shell: powershell
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP 'toir-smtp-test'
+          New-Item -ItemType Directory -Path $root -Force | Out-Null
+          $hrm = Join-Path $root 'hrm.env'
+          $toir = Join-Path $root 'toir.env'
+          $php = Join-Path $root 'php.exe'
+          $app = Join-Path $root 'toir'
+          $backup = Join-Path $root 'backups'
+          New-Item -ItemType Directory -Path $app -Force | Out-Null
+          [IO.File]::WriteAllText($hrm, "MAIL_MAILER=smtp`nMAIL_HOST=mail.example.test`nMAIL_PORT=587`nMAIL_USERNAME=qa`nMAIL_PASSWORD=fixture-only`nMAIL_FROM_ADDRESS=no-reply@itpmining.kz`n")
+          [IO.File]::WriteAllText($toir, "APP_NAME=TOIR`nMAIL_MAILER=log`n")
+          [IO.File]::WriteAllText((Join-Path $app 'artisan'), '')
+          [IO.File]::WriteAllText($php, '')
+          $before = (Get-FileHash $toir).Hash
+          $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\ops\Configure-ToirSmtpFromHrm.ps1 -HrmEnvPath $hrm -ToirEnvPath $toir -ToirAppPath $app -PhpPath $php -BackupDirectory $backup
+          if ($LASTEXITCODE -ne 0) { throw 'SMTP dry-run command failed' }
+          if (-not ($output -match 'TOIR_SMTP_DRY_RUN')) { throw 'SMTP dry-run marker missing' }
+          if ((Get-FileHash $toir).Hash -ne $before) { throw 'SMTP dry-run modified .env' }
+          if (Test-Path $backup) { throw 'SMTP dry-run created a backup unexpectedly' }
+          Write-Host 'SMTP_DRY_RUN_NON_DESTRUCTIVE_OK'
