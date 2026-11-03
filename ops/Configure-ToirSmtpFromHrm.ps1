@@ -53,7 +53,7 @@ if($hostName -ne ''){
      $port -lt 1 -or $port -gt 65535){throw 'HRM SMTP port is invalid'}
 }
 $from=Plain $hrm.Values['MAIL_FROM_ADDRESS']
-try{$parsed=New-Object System.Net.Mail.MailAddress($from)}catch{throw 'Invalid HRM sender address'}
+try{$parsed=[System.Net.Mail.MailAddress]::new($from)}catch{throw 'Invalid HRM sender address'}
 if($parsed.Address -ne $from -or $from -match '@example\.(com|org|test|invalid)$'){
   throw 'Invalid or placeholder HRM sender'
 }
@@ -101,6 +101,9 @@ if(!$updated.EndsWith($newline)){$updated+=$newline}
 Write-Output 'TOIR_SMTP_SOURCE_VALIDATED'
 Write-Output ('TOIR_SMTP_KEYS_PREPARED count='+$replacements.Count)
 if(!$Apply){Write-Output 'TOIR_SMTP_DRY_RUN: no files modified';return}
+if([string]::IsNullOrWhiteSpace($TestRecipient)){
+  throw 'A verified -TestRecipient is required with -Apply to test the actual SMTP transport.'
+}
 New-Item -ItemType Directory -Path $BackupDirectory -Force | Out-Null
 $backup=Join-Path $BackupDirectory ('toir-env-before-smtp-'+(Get-Date -Format 'yyyyMMdd-HHmmss')+'.private')
 Copy-Item -LiteralPath $toirPath -Destination $backup -ErrorAction Stop
