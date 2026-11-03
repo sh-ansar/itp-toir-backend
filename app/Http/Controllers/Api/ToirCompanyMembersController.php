@@ -45,6 +45,12 @@ final class ToirCompanyMembersController extends Controller
         return app()->environment('testing') || !in_array(config('mail.default'),['log','array'],true);
     }
 
+    public function mailStatus(Request $request): JsonResponse
+    {
+        $this->company($request);
+        return response()->json(['data'=>['delivery_enabled'=>$this->mailEnabled()]]);
+    }
+
     public function index(Request $request): JsonResponse
     {
         $company=$this->company($request);

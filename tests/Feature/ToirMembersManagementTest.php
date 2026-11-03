@@ -34,6 +34,8 @@ final class ToirMembersManagementTest extends TestCase
         Notification::fake();
         extract($this->setupCompany());
         $this->login($admin,$company);
+        $this->getJson('/api/v1/company/members/mail-status')->assertOk()
+            ->assertJsonPath('data.delivery_enabled',true);
         $payload=['name'=>'Service technician','email'=>'tech@example.test','role'=>'technician'];
         $this->postJson('/api/v1/company/members',$payload)->assertCreated()
             ->assertJsonPath('data.email','tech@example.test')
@@ -87,6 +89,7 @@ final class ToirMembersManagementTest extends TestCase
         $company->users()->attach($viewer->id,['role'=>'viewer','is_active'=>true]);
         $this->login($viewer,$company);
         $this->getJson('/api/v1/company/members')->assertForbidden();
+        $this->getJson('/api/v1/company/members/mail-status')->assertForbidden();
         $this->postJson('/api/v1/company/members',[
             'name'=>'Unapproved','email'=>'unapproved@example.test','role'=>'viewer',
         ])->assertForbidden();

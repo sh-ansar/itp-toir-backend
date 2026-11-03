@@ -30,6 +30,7 @@ Route::prefix('api/v1')->group(function (): void {
     Route::middleware(['auth', 'toir.account.active'])->group(function (): void {
         Route::get('/overview', [ToirResourceController::class, 'overview']);
         Route::get('/operations/work-control', [ToirWorkControlController::class, 'index']);
+        Route::get('/company/members/mail-status', [ToirCompanyMembersController::class, 'mailStatus']);
         Route::get('/company/members', [ToirCompanyMembersController::class, 'index']);
         Route::post('/company/members', [ToirCompanyMembersController::class, 'invite']);
         Route::patch('/company/members/{id}', [ToirCompanyMembersController::class, 'update'])->whereNumber('id');
