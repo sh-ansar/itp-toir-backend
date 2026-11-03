@@ -18,6 +18,6 @@ final class ToirCompanyAccessNotification extends Notification
             ->greeting('Доступ предоставлен')
             ->line('Вам предоставлен доступ к компании '.$this->companyName.' в ITP ТОиР.')
             ->line('Войдите со своей существующей учётной записью. Пароль не меняется.')
-            ->action('Открыть ITP ТОиР', url('/mro/login'));
+            ->action('Открыть ITP ТОиР', rtrim((string) config('toir.frontend_url'), '/') . '/login');
     }
 }
