@@ -40,6 +40,11 @@ function Run([string]$program,[string[]]$arguments){
   & $program @arguments
   if($LASTEXITCODE -ne 0){throw "Process returned $LASTEXITCODE : $program"}
 }
+function SafeCopy([string]$source,[string]$destination){
+  New-Item -ItemType Directory -Path $destination -Force|Out-Null
+  & robocopy.exe $source $destination /E /R:2 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
+  if($LASTEXITCODE -ge 8){throw "Robocopy failed: $source"}
+}
 function SafeMirror([string]$source,[string]$destination){
   New-Item -ItemType Directory -Path $destination -Force|Out-Null
   & robocopy.exe $source $destination /MIR /R:2 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
@@ -68,11 +73,11 @@ foreach($repo in @($BackendSource,$FrontendSource)){
 Run $PhpPath @((Join-Path $BackendSource 'artisan'),'test','--compact')
 Push-Location $FrontendSource
 try{
-  Run 'npm' @('ci','--no-audit','--no-fund')
+  Run 'npm.cmd' @('ci','--no-audit','--no-fund')
   $previousBase=$env:VITE_BASE_PATH
   try{
     $env:VITE_BASE_PATH='/mro/'
-    Run 'npm' @('run','build')
+    Run 'npm.cmd' @('run','build')
   }finally{$env:VITE_BASE_PATH=$previousBase}
 }finally{Pop-Location}
 $dist=Join-Path $FrontendSource 'dist'
@@ -121,7 +126,7 @@ try{
   Write-Output 'TOIR_BACKUP_VERIFIED'
   $modified=$true
   foreach($rel in $directories){
-    SafeMirror (Join-Path $BackendSource $rel) (Join-Path $BackendTarget $rel)
+    SafeCopy (Join-Path $BackendSource $rel) (Join-Path $BackendTarget $rel)
   }
   Run $PhpPath @((Join-Path $BackendTarget 'artisan'),'config:clear')
   Run $PhpPath @((Join-Path $BackendTarget 'artisan'),'route:clear')
@@ -130,7 +135,7 @@ try{
   $arguments=@('-NoProfile','-ExecutionPolicy','Bypass','-File',$smtpScript,
      '-HrmEnvPath',$HrmEnvPath,'-ToirEnvPath',$envFile,
      '-ToirAppPath',$BackendTarget,'-PhpPath',$PhpPath,
-     '-BackupDirectory',$BackupRoot,'-TestRecipient',$TestRecipient,'-Apply')
+     '-BackupDirectory',$BackupRoot,'-TestRecipient',$TestRecipient,'-FrontendUrl',$PublicUrl,'-Apply')
   Run 'powershell.exe' $arguments
   SafeMirror $dist $FrontendTarget
   Start-Service -Name $service -ErrorAction Stop
