@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Broadcast;
 use App\Http\Controllers\Api\ToirRealtimeController;
 use App\Http\Controllers\Api\ToirOperationsController;
+use App\Http\Controllers\Api\ToirChecklistController;
 
 require __DIR__.'/channels.php';
 
@@ -38,6 +39,13 @@ Route::prefix('api/v1')->group(function (): void {
         Route::delete('/operations/shifts/{id}', [ToirOperationsController::class, 'cancelShift'])->whereNumber('id');
         Route::get('/operations/assets/{id}/readings', [ToirOperationsController::class, 'readings'])->whereNumber('id');
         Route::post('/operations/assets/{id}/readings', [ToirOperationsController::class, 'recordReading'])->whereNumber('id');
+        // Plan templates and immutable execution snapshots.
+        Route::get('/plans/{planId}/checklist', [ToirChecklistController::class, 'planSteps'])->whereNumber('planId');
+        Route::post('/plans/{planId}/checklist', [ToirChecklistController::class, 'createPlanStep'])->whereNumber('planId');
+        Route::patch('/plans/{planId}/checklist/{stepId}', [ToirChecklistController::class, 'updatePlanStep'])->whereNumber('planId')->whereNumber('stepId');
+        Route::delete('/plans/{planId}/checklist/{stepId}', [ToirChecklistController::class, 'deletePlanStep'])->whereNumber('planId')->whereNumber('stepId');
+        Route::get('/work-orders/{orderId}/checklist', [ToirChecklistController::class, 'orderSteps'])->whereNumber('orderId');
+        Route::patch('/work-orders/{orderId}/checklist/{stepId}', [ToirChecklistController::class, 'recordOrderStep'])->whereNumber('orderId')->whereNumber('stepId');
         Route::get('/realtime/config', [ToirRealtimeController::class, 'config']);
         Route::get('/schedule', [ToirResourceController::class, 'schedule']);
         // Isolated stock and work-order material ledger.

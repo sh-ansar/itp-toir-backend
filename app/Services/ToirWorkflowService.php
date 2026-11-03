@@ -15,7 +15,8 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 final class ToirWorkflowService
 {
-    public function __construct(private readonly ToirPlanningService $planning) {}
+    public function __construct(private readonly ToirPlanningService $planning,
+        private readonly ToirChecklistService $checklist) {}
     private function role(Company $company): string
     {
         return (string) $company->pivot->role;
@@ -96,6 +97,7 @@ final class ToirWorkflowService
                         'comment' => 'Укажите результат выполненных работ.',
                     ]);
                 }
+                $this->checklist->assertCompletable($order);
                 $order->status = 'closed';
                 $order->actual_end = now();
             } else {
@@ -217,6 +219,7 @@ final class ToirWorkflowService
                     ->addMinutes($duration)->toDateTimeString();
             }
             $order->save();
+            $this->checklist->snapshot($plan,$order);
 
             $order->number = 'НЗ-'.str_pad((string) $order->id, 6, '0', STR_PAD_LEFT);
             $order->save();

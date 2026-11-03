@@ -238,7 +238,10 @@ class ToirResourceController extends Controller
         $company = $this->company($request);
         $model = $this->model($resource);
         $with = self::RELATIONS[$resource] ?? [];
-        if ($resource === 'work-orders') $with[] = 'events';
+        if ($resource === 'work-orders') {
+            $with[] = 'events';
+            $with[] = 'crew.members';
+        }
 
         $record = $model::query()->where('company_id', $company->id)
             ->with($with)->findOrFail($id);

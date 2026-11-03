@@ -12,5 +12,6 @@ class ToirMaintenancePlan extends ToirRecord
     public function asset(): BelongsTo { return $this->belongsTo(ToirAsset::class, 'asset_id'); }
     public function employee(): BelongsTo { return $this->belongsTo(ToirEmployee::class, 'employee_id'); }
     public function workOrders(): HasMany { return $this->hasMany(ToirWorkOrder::class, 'maintenance_plan_id'); }
+    public function steps(): HasMany {return $this->hasMany(ToirMaintenanceStep::class,'maintenance_plan_id')->orderBy('position');}
     public function crew(): BelongsTo {return $this->belongsTo(ToirCrew::class,'crew_id');}
 }

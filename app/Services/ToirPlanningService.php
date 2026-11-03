@@ -19,6 +19,8 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 final class ToirPlanningService
 {
+    public function __construct(private readonly ToirChecklistService $checklist) {}
+
     /**
      * Condition-based risk triage (not a trained failure-probability model).
      * Returns scored components and an inherited maximum risk for their parents.
@@ -401,6 +403,7 @@ final class ToirPlanningService
                     ]);
                     $order->number='MRO-'.str_pad((string)$order->id,6,'0',STR_PAD_LEFT);
                     $order->save();
+                    $this->checklist->snapshot($plan,$order);
                     ToirWorkOrderEvent::forceCreate([
                         'company_id'=>$company->id,'work_order_id'=>$order->id,
                         'user_id'=>$request->user()->id,
@@ -493,6 +496,7 @@ final class ToirPlanningService
                     ]);
                     $order->number='MRO-'.str_pad((string)$order->id,6,'0',STR_PAD_LEFT);
                     $order->save();
+                    $this->checklist->snapshot($plan,$order);
                     ToirWorkOrderEvent::forceCreate([
                         'company_id'=>$company->id,'work_order_id'=>$order->id,
                         'user_id'=>$request->user()->id,

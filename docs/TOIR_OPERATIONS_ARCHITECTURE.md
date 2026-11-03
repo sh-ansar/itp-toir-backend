@@ -44,6 +44,38 @@ Current P0 constraints: shifts do not cross midnight, plan generation horizon ma
 
 The API returns reasons, score, score before child inheritance, inherited child ID, timestamp and a disclaimer. A low score with incomplete measurement history is **not** evidence the equipment is healthy. ML-based failure probability, anomaly detection, remaining useful life and causal modelling require a sufficiently long stream of trusted telemetry and verified failure events.
 
+## Checklists and proven completion (P0.1)
+
+Maintenance-plan steps are stored as versionable live templates in
+\`toir_maintenance_steps\`. They have an order, short title, instructions,
+operation kind (inspection/service/safety/measurement), required flag and
+optional unit of measurement. Each issued work order receives a separate,
+immutable **snapshot of the template** in \`toir_work_order_steps\`, inside
+the issuing transaction. This snapshot is not rewritten if the plan's
+template is later edited or a plan step removed.
+
+Technicians (assigned individually or by active brigade membership) and
+authorised supervisors may record steps only when the order is
+\`in_progress\`. A mandatory step cannot be skipped, an optional skipped step
+requires a stated reason, and a measurement step cannot be completed without
+an actual numeric reading. The server timestamps results and records the
+performer; every changed status/result generates a work-order event.
+The main work-order state machine prevents completion while any mandatory
+checklist item remains unfinished. Legacy orders that had no checklist
+continue to use the previous controlled completion flow.
+
+These controls are not a legally certified electronic signature, a
+permit-to-work workflow or a substitute for industrial HSE approvals.
+Future enhancements: certified lockout/tagout signoffs, attachments and
+photos as execution evidence, calibration limits, supervisor verification,
+controlled template revision IDs, and maintenance competence matching.
+
+New authenticated routes:
+- \`GET/POST /api/v1/plans/{planId}/checklist\`
+- \`PATCH/DELETE /api/v1/plans/{planId}/checklist/{stepId}\`
+- \`GET /api/v1/work-orders/{orderId}/checklist\`
+- \`PATCH /api/v1/work-orders/{orderId}/checklist/{stepId}\`
+
 ## API (authenticated, active-company scoped)
 
 - \`GET /api/v1/operations/asset-tree\`
