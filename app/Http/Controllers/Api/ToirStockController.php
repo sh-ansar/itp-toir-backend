@@ -261,7 +261,7 @@ final class ToirStockController extends Controller
         $result=DB::transaction(function() use($company,$request,$id,$v,$qty) {
             $order=ToirWorkOrder::where('company_id',$company->id)->lockForUpdate()->findOrFail($id);
             $this->operator($company,$request,$order);
-            abort_if($order->status==='closed',409,'Закрытый наряд нельзя изменять.');
+            abort_if(in_array($order->status,['closed','awaiting_acceptance'],true),409,'Закрытый наряд нельзя изменять.');
             if($v['action']==='consume' && $order->status!=='in_progress') {
                 abort(409,'Списание допускается только для наряда в работе.');
             }

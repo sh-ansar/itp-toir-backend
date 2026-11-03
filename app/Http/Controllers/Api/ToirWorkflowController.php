@@ -30,10 +30,11 @@ final class ToirWorkflowController extends Controller
         $data = $request->validate([
             'action' => ['required', Rule::in(['start','complete','reopen'])],
             'comment' => ['nullable','string','max:2000'],
+            'actual_labor_minutes' => ['prohibited_unless:action,complete','nullable','integer','min:0','max:1000000'],
         ]);
 
         $order = $this->workflow->transition(
-            $request, $company, $id, $data['action'], $data['comment'] ?? null
+            $request, $company, $id, $data['action'], $data['comment'] ?? null, $data['actual_labor_minutes'] ?? null
         );
 
         return response()->json(['data' => $order]);

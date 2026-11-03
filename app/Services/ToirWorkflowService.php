@@ -47,9 +47,9 @@ final class ToirWorkflowService
         abort(403, 'Недостаточно прав для этой операции над нарядом.');
     }
 
-    public function transition(Request $request, Company $company, int $id, string $action, ?string $comment): ToirWorkOrder
+    public function transition(Request $request, Company $company, int $id, string $action, ?string $comment, ?int $laborMinutes = null): ToirWorkOrder
     {
-        return DB::transaction(function () use ($request, $company, $id, $action, $comment): ToirWorkOrder {
+        return DB::transaction(function () use ($request, $company, $id, $action, $comment, $laborMinutes): ToirWorkOrder {
             $order = ToirWorkOrder::where('company_id', $company->id)
                 ->lockForUpdate()->findOrFail($id);
             $this->canManage($request, $company, $order, $action);
@@ -98,8 +98,10 @@ final class ToirWorkflowService
                     ]);
                 }
                 $this->checklist->assertCompletable($order);
-                $order->status = 'closed';
+                // Corrective emergency repairs require independent acceptance before closure.
+                $order->status = $order->type === 'emergency' ? 'awaiting_acceptance' : 'closed';
                 $order->actual_end = now();
+                if ($laborMinutes !== null) $order->actual_labor_minutes = (int) ($order->actual_labor_minutes ?? 0) + $laborMinutes;
             } else {
                 if ($order->maintenance_plan_id !== null) {
                     throw new HttpException(409, 'Наряд из плана ТО нельзя открыть повторно после завершения цикла. Создайте новый наряд.');
@@ -117,6 +119,7 @@ final class ToirWorkflowService
             $order->save();
             $this->event($company, $order, $request, $action, $comment, [
                 'from' => $before, 'to' => (string) $order->status,
+                'labor_minutes_added' => $action === 'complete' ? $laborMinutes : null,
             ]);
 
             if ($action === 'complete' && $order->maintenance_plan_id !== null && $order->scheduled_for !== null) {

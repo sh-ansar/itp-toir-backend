@@ -10,6 +10,11 @@ use Illuminate\Support\Facades\Broadcast;
 use App\Http\Controllers\Api\ToirRealtimeController;
 use App\Http\Controllers\Api\ToirOperationsController;
 use App\Http\Controllers\Api\ToirChecklistController;
+use App\Http\Controllers\Api\ToirAssetPassportController;
+use App\Http\Controllers\Api\ToirFaultController;
+use App\Http\Controllers\Api\ToirDispatchController;
+use App\Http\Controllers\Api\ToirWorkControlController;
+use App\Http\Controllers\Api\ToirCompanyMembersController;
 
 require __DIR__.'/channels.php';
 
@@ -24,8 +29,15 @@ Route::prefix('api/v1')->group(function (): void {
 
     Route::middleware(['auth', 'toir.account.active'])->group(function (): void {
         Route::get('/overview', [ToirResourceController::class, 'overview']);
+        Route::get('/operations/work-control', [ToirWorkControlController::class, 'index']);
+        Route::get('/company/members', [ToirCompanyMembersController::class, 'index']);
+        Route::post('/company/members', [ToirCompanyMembersController::class, 'invite']);
+        Route::patch('/company/members/{id}', [ToirCompanyMembersController::class, 'update'])->whereNumber('id');
+        Route::post('/company/members/{id}/resend', [ToirCompanyMembersController::class, 'resend'])->whereNumber('id');
         // Equipment hierarchy, measured condition, crew calendar and explainable risks.
         Route::get('/operations/asset-tree', [ToirOperationsController::class, 'assetTree']);
+        Route::get('/assets/{id}/passport', [ToirAssetPassportController::class, 'show'])->whereNumber('id');
+        Route::post('/assets/{id}/faults', [ToirFaultController::class, 'report'])->whereNumber('id');
         Route::get('/operations/risk', [ToirOperationsController::class, 'risk']);
         Route::get('/operations/forecast', [ToirOperationsController::class, 'forecast']);
         Route::post('/operations/generate', [ToirOperationsController::class, 'generate']);
@@ -72,6 +84,8 @@ Route::prefix('api/v1')->group(function (): void {
         Route::patch('/chats/{id}/messages/{messageId}', [ToirChatController::class, 'modify'])->whereNumber('id')->whereNumber('messageId');
         Route::delete('/chats/{id}/messages/{messageId}', [ToirChatController::class, 'destroy'])->whereNumber('id')->whereNumber('messageId');
         Route::post('/work-orders/{id}/transition', [ToirWorkflowController::class, 'transition'])->whereNumber('id');
+        Route::post('/work-orders/{id}/dispatch', [ToirDispatchController::class, 'assign'])->whereNumber('id');
+        Route::post('/work-orders/{id}/review', [ToirDispatchController::class, 'review'])->whereNumber('id');
         Route::post('/plans/{id}/issue', [ToirWorkflowController::class, 'issuePlan'])->whereNumber('id');
         Route::get('/resources/{resource}', [ToirResourceController::class, 'index']);
         Route::post('/resources/{resource}', [ToirResourceController::class, 'store']);

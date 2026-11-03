@@ -154,6 +154,8 @@ class ToirResourceController extends Controller
                 'actual_start' => ['prohibited'],
                 'actual_end' => ['prohibited'],
                 'estimated_cost' => ['nullable','numeric','min:0'],
+                'priority' => ['sometimes','integer','between:1,5'],
+                'actual_labor_minutes' => ['prohibited'],
             ],
             'plans' => [
                 'title' => ['sometimes','required','string','max:255'],
@@ -340,7 +342,7 @@ class ToirResourceController extends Controller
         $this->authorizeWrite($company, $resource, 'update');
         $model = $this->model($resource);
         $record = $model::query()->where('company_id',$company->id)->findOrFail($id);
-        if ($resource === 'work-orders' && $record->status === 'closed') {
+        if ($resource === 'work-orders' && in_array($record->status, ['closed','awaiting_acceptance'], true)) {
             return response()->json([
                 'message' => 'Закрытый наряд нельзя редактировать. Для исправления откройте новый наряд.',
             ], 409);
@@ -430,7 +432,7 @@ class ToirResourceController extends Controller
             return response()->json(['message'=>'План ТО связан с нарядами; его нельзя архивировать.'],409);
         }
         if ($resource === 'work-orders' && (
-            $record->maintenance_plan_id !== null || $record->status === 'in_progress'
+            $record->maintenance_plan_id !== null || in_array($record->status,['in_progress','awaiting_acceptance'],true)
         )) {
             return response()->json(['message'=>'Активный наряд или наряд из плана ТО нельзя архивировать.'],409);
         }
