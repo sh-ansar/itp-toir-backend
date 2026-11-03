@@ -24,7 +24,7 @@ Route::prefix('api/v1')->group(function (): void {
     Route::get('/health', fn () => response()->json([
         'status' => 'ok',
         'service' => 'itp-toir-api',
-        'capabilities' => ['password_reset' => !in_array(config('mail.default'), ['log', 'array'], true)],
+        'capabilities' => ['password_reset' => app(\App\Services\ToirMailReadiness::class)->configured()],
     ]));
 
     Route::middleware(['auth', 'toir.account.active'])->group(function (): void {
