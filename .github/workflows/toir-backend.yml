@@ -1,0 +1,30 @@
+name: TOIR backend checks
+
+on:
+  push:
+    branches:
+      - feature/toir-foundation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  laravel-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, sqlite3, pdo_sqlite, bcmath, intl, fileinfo
+          coverage: none
+      - name: Install locked PHP dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+      - name: Prepare isolated Laravel test environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --no-interaction
+      - name: Run complete backend test suite
+        run: php artisan test --compact
