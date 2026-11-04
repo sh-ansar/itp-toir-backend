@@ -55,7 +55,7 @@ class BootstrapToir extends Command
                 ['name' => $data['company_name'], 'is_active' => true]
             );
 
-            if (!$company->is_active) {
+            if (! $company->is_active) {
                 throw new \RuntimeException('Компания отключена.');
             }
 
@@ -70,6 +70,7 @@ class BootstrapToir extends Command
         });
 
         $this->info('Администратор создан. Учётные данные никому не отправлялись.');
+
         return self::SUCCESS;
     }
 }

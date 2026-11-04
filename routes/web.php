@@ -1,30 +1,31 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\ToirResourceController;
-use App\Http\Controllers\Api\ToirWorkflowController;
-use App\Http\Controllers\Api\ToirStockController;
-use App\Http\Controllers\Api\ToirChatController;
-use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Broadcast;
-use App\Http\Controllers\Api\ToirRealtimeController;
-use App\Http\Controllers\Api\ToirOperationsController;
-use App\Http\Controllers\Api\ToirChecklistController;
 use App\Http\Controllers\Api\ToirAssetPassportController;
-use App\Http\Controllers\Api\ToirFaultController;
-use App\Http\Controllers\Api\ToirDispatchController;
-use App\Http\Controllers\Api\ToirWorkControlController;
+use App\Http\Controllers\Api\ToirChatController;
+use App\Http\Controllers\Api\ToirChecklistController;
 use App\Http\Controllers\Api\ToirCompanyMembersController;
+use App\Http\Controllers\Api\ToirDispatchController;
+use App\Http\Controllers\Api\ToirFaultController;
+use App\Http\Controllers\Api\ToirOperationsController;
+use App\Http\Controllers\Api\ToirRealtimeController;
+use App\Http\Controllers\Api\ToirResourceController;
+use App\Http\Controllers\Api\ToirStockController;
+use App\Http\Controllers\Api\ToirWorkControlController;
+use App\Http\Controllers\Api\ToirWorkflowController;
+use App\Services\ToirMailReadiness;
+use Illuminate\Support\Facades\Broadcast;
+use Illuminate\Support\Facades\Route;
 
 require __DIR__.'/channels.php';
 
-Broadcast::routes(['middleware'=>['auth','toir.account.active'], 'prefix'=>'api/v1']);
+Broadcast::routes(['middleware' => ['auth', 'toir.account.active'], 'prefix' => 'api/v1']);
 
 Route::prefix('api/v1')->group(function (): void {
     Route::get('/health', fn () => response()->json([
         'status' => 'ok',
         'service' => 'itp-toir-api',
-        'capabilities' => ['password_reset' => app(\App\Services\ToirMailReadiness::class)->configured()],
+        'capabilities' => ['password_reset' => app(ToirMailReadiness::class)->configured()],
     ]));
 
     Route::middleware(['auth', 'toir.account.active'])->group(function (): void {

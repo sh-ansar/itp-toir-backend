@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Company;
 use App\Models\ToirAsset;
 use App\Models\ToirAssetReading;
 use App\Models\ToirMaintenancePlan;
@@ -42,7 +41,7 @@ final class ToirAssetPassportController extends Controller
                 'completed_orders' => ToirWorkOrder::where('company_id', $company->id)
                     ->where('asset_id', $asset->id)->where('status', 'closed')->count(),
                 'open_orders' => ToirWorkOrder::where('company_id', $company->id)
-                    ->where('asset_id', $asset->id)->whereIn('status', ['waiting','in_progress','overdue','awaiting_acceptance'])->count(),
+                    ->where('asset_id', $asset->id)->whereIn('status', ['waiting', 'in_progress', 'overdue', 'awaiting_acceptance'])->count(),
                 'plan_count' => ToirMaintenancePlan::where('company_id', $company->id)
                     ->where('asset_id', $asset->id)->count(),
                 'reading_count' => ToirAssetReading::where('company_id', $company->id)

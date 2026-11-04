@@ -11,12 +11,14 @@ use Throwable;
 final class ToirMailCheck extends Command
 {
     protected $signature = 'toir:mail-check {--send-to= : Send one actual test message to this address}';
+
     protected $description = 'Verify SMTP configuration, optionally send one non-queued test email';
 
     public function handle(ToirMailReadiness $readiness): int
     {
-        if (!$readiness->configured()) {
+        if (! $readiness->configured()) {
             $this->error('TOIR_SMTP_NOT_READY: check MAIL_MAILER, MAIL_HOST, MAIL_PORT and MAIL_FROM_ADDRESS.');
+
             return self::FAILURE;
         }
 
@@ -25,8 +27,9 @@ final class ToirMailCheck extends Command
         if ($recipient === null || $recipient === '') {
             return self::SUCCESS;
         }
-        if (!is_string($recipient) || !filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
+        if (! is_string($recipient) || ! filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
             $this->error('TOIR_SMTP_TEST_RECIPIENT_INVALID');
+
             return self::FAILURE;
         }
 
@@ -40,11 +43,13 @@ final class ToirMailCheck extends Command
         } catch (Throwable $exception) {
             report($exception);
             $this->error('TOIR_SMTP_TRANSPORT_FAILED: inspect private Laravel logs.');
+
             return self::FAILURE;
         }
 
         // Transport acceptance does not guarantee delivery to the recipient's inbox.
         $this->info('TOIR_SMTP_TRANSPORT_ACCEPTED');
+
         return self::SUCCESS;
     }
 }

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Company;
 use App\Models\User;
 use App\Services\AuthAudit;
+use App\Services\ToirMailReadiness;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -28,7 +29,7 @@ class AuthController extends Controller
 
         $email = Str::lower(trim($input['email']));
 
-        if (!Auth::attempt(['email' => $email, 'password' => $input['password'], 'is_active' => true])) {
+        if (! Auth::attempt(['email' => $email, 'password' => $input['password'], 'is_active' => true])) {
             throw ValidationException::withMessages([
                 'email' => ['Неверный адрес электронной почты или пароль.'],
             ]);
@@ -38,7 +39,7 @@ class AuthController extends Controller
         $user = Auth::user();
 
         // New users must activate their mailbox using their private invite link.
-        if (!$user->email_verified_at) {
+        if (! $user->email_verified_at) {
             Auth::logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
@@ -50,7 +51,7 @@ class AuthController extends Controller
 
         $company = $user->activeCompanies()->orderBy('companies.id')->first();
 
-        if (!$company) {
+        if (! $company) {
             Auth::logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
@@ -84,7 +85,7 @@ class AuthController extends Controller
         $user = $request->user();
         $company = $user->activeCompanies()->whereKey($payload['company_id'])->first();
 
-        if (!$company) {
+        if (! $company) {
             return response()->json(['message' => 'Нет доступа к выбранной компании.'], 403);
         }
 
@@ -142,7 +143,7 @@ class AuthController extends Controller
         $payload = $request->validate(['email' => ['required', 'email:rfc', 'max:255']]);
         $email = Str::lower(trim($payload['email']));
 
-        if (!app(\App\Services\ToirMailReadiness::class)->configured()) {
+        if (! app(ToirMailReadiness::class)->configured()) {
             return response()->json([
                 'message' => 'Восстановление пароля по почте временно недоступно. Обратитесь к администратору.',
             ], 503);
@@ -173,7 +174,7 @@ class AuthController extends Controller
         $payload['email'] = Str::lower(trim($payload['email']));
 
         $status = Password::reset($payload, function (User $user, string $password): void {
-            if (!$user->is_active) {
+            if (! $user->is_active) {
                 throw ValidationException::withMessages([
                     'email' => ['Invalid password reset link.'],
                 ]);
@@ -204,7 +205,7 @@ class AuthController extends Controller
         $companyId = $request->session()->get('toir_company_id');
         $company = $companyId ? $user->activeCompanies()->whereKey($companyId)->first() : null;
 
-        if (!$company) {
+        if (! $company) {
             $company = $user->activeCompanies()->orderBy('companies.id')->first();
 
             if ($company) {

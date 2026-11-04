@@ -13,7 +13,7 @@ final class ToirMailLinkTest extends TestCase
         config()->set('toir.frontend_url', 'https://platform.itpmining.kz/mro');
 
         $message = (new ToirCompanyAccessNotification('ITP Mining'))
-            ->toMail(new User());
+            ->toMail(new User);
 
         $this->assertSame('https://platform.itpmining.kz/mro/login', $message->actionUrl);
         $this->assertSame('ITP ТОиР: доступ к компании', $message->subject);
@@ -24,7 +24,7 @@ final class ToirMailLinkTest extends TestCase
         config()->set('toir.frontend_url', 'https://platform.itpmining.kz/mro/');
 
         $message = (new ToirCompanyAccessNotification('ITP Mining'))
-            ->toMail(new User());
+            ->toMail(new User);
 
         $this->assertSame('https://platform.itpmining.kz/mro/login', $message->actionUrl);
     }

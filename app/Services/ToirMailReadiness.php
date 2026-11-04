@@ -23,7 +23,7 @@ final class ToirMailReadiness
 
     public static function hasUsableSmtpConfiguration(string $mailer, array $smtp, string $sender): bool
     {
-        if ($mailer !== 'smtp' || !filter_var($sender, FILTER_VALIDATE_EMAIL)) {
+        if ($mailer !== 'smtp' || ! filter_var($sender, FILTER_VALIDATE_EMAIL)) {
             return false;
         }
 
@@ -35,9 +35,10 @@ final class ToirMailReadiness
         $url = trim((string) ($smtp['url'] ?? ''));
         if ($url !== '') {
             $parts = parse_url($url);
+
             return is_array($parts)
                 && in_array(strtolower((string) ($parts['scheme'] ?? '')), ['smtp', 'smtps'], true)
-                && !empty($parts['host']);
+                && ! empty($parts['host']);
         }
 
         $host = trim((string) ($smtp['host'] ?? ''));
@@ -47,7 +48,7 @@ final class ToirMailReadiness
 
         return $host !== ''
             && $port >= 1 && $port <= 65535
-            && !($host === '127.0.0.1' && $port === 2525)
+            && ! ($host === '127.0.0.1' && $port === 2525)
             && ($username === '' || $password !== '');
     }
 }

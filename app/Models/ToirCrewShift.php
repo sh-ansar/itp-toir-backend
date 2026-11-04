@@ -7,8 +7,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 final class ToirCrewShift extends Model
 {
-    protected $table='toir_crew_shifts';
-    protected $guarded=['id'];
+    protected $table = 'toir_crew_shifts';
 
-    public function crew(): BelongsTo {return $this->belongsTo(ToirCrew::class,'crew_id');}
+    protected $guarded = ['id'];
+
+    public function crew(): BelongsTo
+    {
+        return $this->belongsTo(ToirCrew::class, 'crew_id');
+    }
 }

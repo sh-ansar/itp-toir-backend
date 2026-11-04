@@ -143,8 +143,8 @@ return new class extends Migration
 
     public function down(): void
     {
-        foreach (['toir_work_order_events','toir_tenders','toir_supplies','toir_maintenance_plans',
-            'toir_work_orders','toir_projects','toir_employees','toir_assets'] as $table) {
+        foreach (['toir_work_order_events', 'toir_tenders', 'toir_supplies', 'toir_maintenance_plans',
+            'toir_work_orders', 'toir_projects', 'toir_employees', 'toir_assets'] as $table) {
             Schema::dropIfExists($table);
         }
     }

@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Company;
 use App\Models\ToirAsset;
+use App\Models\ToirAssetReading;
+use App\Models\ToirCrew;
 use App\Models\ToirEmployee;
 use App\Models\ToirMaintenancePlan;
 use App\Models\ToirProject;
@@ -13,20 +15,19 @@ use App\Models\ToirTender;
 use App\Models\ToirWorkOrder;
 use App\Models\ToirWorkOrderEvent;
 use App\Models\ToirWorkOrderMaterial;
-use App\Models\ToirCrew;
-use App\Models\ToirAssetReading;
 use App\Services\ToirPlanningService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Carbon;
 
 class ToirResourceController extends Controller
 {
     public function __construct(private readonly ToirPlanningService $planning) {}
+
     private const RESOURCES = [
         'assets' => ToirAsset::class,
         'employees' => ToirEmployee::class,
@@ -48,10 +49,10 @@ class ToirResourceController extends Controller
     ];
 
     private const RELATIONS = [
-        'work-orders' => ['asset', 'employee', 'project', 'maintenancePlan','crew'], 
-        'plans' => ['asset', 'employee','crew'], 
+        'work-orders' => ['asset', 'employee', 'project', 'maintenancePlan', 'crew'],
+        'plans' => ['asset', 'employee', 'crew'],
         'supplies' => ['asset'],
-        'assets' => ['parent'], 
+        'assets' => ['parent'],
     ];
 
     private function company(Request $request): Company
@@ -101,98 +102,98 @@ class ToirResourceController extends Controller
             'assets' => [
                 'name' => ['sometimes', 'required', 'string', 'max:255'],
                 'code' => ['sometimes', 'required', 'string', 'max:80', $unique('toir_assets', 'code')],
-                'category' => ['sometimes', 'required', Rule::in(['premises','equipment','tools','materials'])],
-                'node_type' => ['sometimes', Rule::in(['object','system','equipment','aggregate','assembly','component'])],
-                'criticality' => ['sometimes','integer','between:1,5'],
+                'category' => ['sometimes', 'required', Rule::in(['premises', 'equipment', 'tools', 'materials'])],
+                'node_type' => ['sometimes', Rule::in(['object', 'system', 'equipment', 'aggregate', 'assembly', 'component'])],
+                'criticality' => ['sometimes', 'integer', 'between:1,5'],
                 'operating_hours' => ['prohibited'],
                 'condition_score' => ['prohibited'],
                 'condition_recorded_at' => ['prohibited'],
-                'status' => ['sometimes', Rule::in(['active','maintenance','inactive','retired'])],
-                'location' => ['nullable','string','max:255'],
-                'parent_id' => ['nullable','integer',$belongs('toir_assets'), Rule::notIn($id ? [$id] : [])],
-                'manufacturer' => ['nullable','string','max:255'],
-                'model' => ['nullable','string','max:255'],
-                'serial_number' => ['nullable','string','max:255'],
-                'commissioned_at' => ['nullable','date'],
-                'purchase_value' => ['nullable','numeric','min:0'],
-                'description' => ['nullable','string','max:5000'],
+                'status' => ['sometimes', Rule::in(['active', 'maintenance', 'inactive', 'retired'])],
+                'location' => ['nullable', 'string', 'max:255'],
+                'parent_id' => ['nullable', 'integer', $belongs('toir_assets'), Rule::notIn($id ? [$id] : [])],
+                'manufacturer' => ['nullable', 'string', 'max:255'],
+                'model' => ['nullable', 'string', 'max:255'],
+                'serial_number' => ['nullable', 'string', 'max:255'],
+                'commissioned_at' => ['nullable', 'date'],
+                'purchase_value' => ['nullable', 'numeric', 'min:0'],
+                'description' => ['nullable', 'string', 'max:5000'],
             ],
             'employees' => [
-                'name' => ['sometimes','required','string','max:255'],
-                'email' => ['nullable','email:rfc','max:255'],
-                'position' => ['nullable','string','max:255'],
-                'department' => ['nullable','string','max:255'],
-                'phone' => ['nullable','string','max:60'],
-                'status' => ['sometimes', Rule::in(['active','inactive','vacation'])],
-                'user_id' => ['nullable', Rule::exists('users','id')->whereIn(
-                    'id', DB::table('company_user')->where('company_id',$company->id)->where('is_active',true)->pluck('user_id')->all()
+                'name' => ['sometimes', 'required', 'string', 'max:255'],
+                'email' => ['nullable', 'email:rfc', 'max:255'],
+                'position' => ['nullable', 'string', 'max:255'],
+                'department' => ['nullable', 'string', 'max:255'],
+                'phone' => ['nullable', 'string', 'max:60'],
+                'status' => ['sometimes', Rule::in(['active', 'inactive', 'vacation'])],
+                'user_id' => ['nullable', Rule::exists('users', 'id')->whereIn(
+                    'id', DB::table('company_user')->where('company_id', $company->id)->where('is_active', true)->pluck('user_id')->all()
                 )],
             ],
             'projects' => [
-                'name' => ['sometimes','required','string','max:255'],
-                'code' => ['sometimes','required','string','max:80',$unique('toir_projects','code')],
-                'manager_name' => ['nullable','string','max:255'],
-                'status' => ['sometimes', Rule::in(['planned','active','paused','completed'])],
-                'start_date' => ['nullable','date'],
-                'end_date' => ['nullable','date','after_or_equal:start_date'],
-                'description' => ['nullable','string','max:5000'],
+                'name' => ['sometimes', 'required', 'string', 'max:255'],
+                'code' => ['sometimes', 'required', 'string', 'max:80', $unique('toir_projects', 'code')],
+                'manager_name' => ['nullable', 'string', 'max:255'],
+                'status' => ['sometimes', Rule::in(['planned', 'active', 'paused', 'completed'])],
+                'start_date' => ['nullable', 'date'],
+                'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+                'description' => ['nullable', 'string', 'max:5000'],
             ],
             'work-orders' => [
-                'title' => ['sometimes','required','string','max:255'],
-                'description' => ['nullable','string','max:10000'],
-                'asset_id' => ['nullable','integer',$belongs('toir_assets')],
-                'project_id' => ['nullable','integer',$belongs('toir_projects')],
-                'crew_id' => ['nullable','integer',Rule::exists('toir_crews','id')
-                    ->where('company_id',$company->id)->where('status','active')],
-                'duration_minutes' => ['nullable','integer','between:15,1440'],
+                'title' => ['sometimes', 'required', 'string', 'max:255'],
+                'description' => ['nullable', 'string', 'max:10000'],
+                'asset_id' => ['nullable', 'integer', $belongs('toir_assets')],
+                'project_id' => ['nullable', 'integer', $belongs('toir_projects')],
+                'crew_id' => ['nullable', 'integer', Rule::exists('toir_crews', 'id')
+                    ->where('company_id', $company->id)->where('status', 'active')],
+                'duration_minutes' => ['nullable', 'integer', 'between:15,1440'],
                 'trigger_source' => ['prohibited'],
                 'trigger_hours' => ['prohibited'],
-                'employee_id' => ['nullable','integer',$belongs('toir_employees')],
-                'type' => ['sometimes', Rule::in(['planned','emergency'])],
+                'employee_id' => ['nullable', 'integer', $belongs('toir_employees')],
+                'type' => ['sometimes', Rule::in(['planned', 'emergency'])],
                 'status' => $record ? ['prohibited'] : ['sometimes', Rule::in(['waiting'])],
-                'planned_start' => ['nullable','date'],
-                'planned_end' => ['nullable','date','after_or_equal:planned_start'],
+                'planned_start' => ['nullable', 'date'],
+                'planned_end' => ['nullable', 'date', 'after_or_equal:planned_start'],
                 'actual_start' => ['prohibited'],
                 'actual_end' => ['prohibited'],
-                'estimated_cost' => ['nullable','numeric','min:0'],
-                'priority' => ['sometimes','integer','between:1,5'],
+                'estimated_cost' => ['nullable', 'numeric', 'min:0'],
+                'priority' => ['sometimes', 'integer', 'between:1,5'],
                 'actual_labor_minutes' => ['prohibited'],
             ],
             'plans' => [
-                'title' => ['sometimes','required','string','max:255'],
-                'asset_id' => ['sometimes','required','integer',$belongs('toir_assets')],
-                'employee_id' => ['nullable','integer',$belongs('toir_employees')],
-                'periodicity_days' => ['sometimes','required','integer','min:1','max:3650'],
-                'crew_id' => ['nullable','integer',Rule::exists('toir_crews','id')
-                    ->where('company_id',$company->id)->where('status','active')],
-                'duration_minutes' => ['sometimes','integer','between:15,1440'],
-                'priority' => ['sometimes','integer','between:1,5'],
-                'interval_hours' => ['nullable','numeric','gt:0','max:999999999'],
-                'next_due_hours' => ['nullable','numeric','min:0','max:999999999'],
-                'work_instructions' => ['nullable','string','max:10000'],
-                'safety_instructions' => ['nullable','string','max:5000'],
-                'next_due_date' => ['sometimes','required','date'],
-                'start_date' => ['nullable','date'],
-                'status' => ['sometimes', Rule::in(['planned','active','paused','completed'])],
-                'description' => ['nullable','string','max:5000'],
+                'title' => ['sometimes', 'required', 'string', 'max:255'],
+                'asset_id' => ['sometimes', 'required', 'integer', $belongs('toir_assets')],
+                'employee_id' => ['nullable', 'integer', $belongs('toir_employees')],
+                'periodicity_days' => ['sometimes', 'required', 'integer', 'min:1', 'max:3650'],
+                'crew_id' => ['nullable', 'integer', Rule::exists('toir_crews', 'id')
+                    ->where('company_id', $company->id)->where('status', 'active')],
+                'duration_minutes' => ['sometimes', 'integer', 'between:15,1440'],
+                'priority' => ['sometimes', 'integer', 'between:1,5'],
+                'interval_hours' => ['nullable', 'numeric', 'gt:0', 'max:999999999'],
+                'next_due_hours' => ['nullable', 'numeric', 'min:0', 'max:999999999'],
+                'work_instructions' => ['nullable', 'string', 'max:10000'],
+                'safety_instructions' => ['nullable', 'string', 'max:5000'],
+                'next_due_date' => ['sometimes', 'required', 'date'],
+                'start_date' => ['nullable', 'date'],
+                'status' => ['sometimes', Rule::in(['planned', 'active', 'paused', 'completed'])],
+                'description' => ['nullable', 'string', 'max:5000'],
             ],
             'supplies' => [
-                'name' => ['sometimes','required','string','max:255'],
-                'asset_id' => ['nullable','integer',$belongs('toir_assets')],
-                'category' => ['sometimes', Rule::in(['spares','materials','tools'])],
-                'quantity' => ['sometimes','numeric','min:0.001'],
-                'unit' => ['sometimes','string','max:30'],
-                'unit_price' => ['nullable','numeric','min:0'],
-                'status' => ['sometimes',Rule::in(['requested','ordered','cancelled'])],
-                'requested_at' => ['nullable','date'],
+                'name' => ['sometimes', 'required', 'string', 'max:255'],
+                'asset_id' => ['nullable', 'integer', $belongs('toir_assets')],
+                'category' => ['sometimes', Rule::in(['spares', 'materials', 'tools'])],
+                'quantity' => ['sometimes', 'numeric', 'min:0.001'],
+                'unit' => ['sometimes', 'string', 'max:30'],
+                'unit_price' => ['nullable', 'numeric', 'min:0'],
+                'status' => ['sometimes', Rule::in(['requested', 'ordered', 'cancelled'])],
+                'requested_at' => ['nullable', 'date'],
             ],
             'tenders' => [
-                'number' => ['sometimes','required','string','max:80',$unique('toir_tenders','number')],
-                'title' => ['sometimes','required','string','max:255'],
-                'status' => ['sometimes',Rule::in(['draft','published','evaluation','completed','cancelled'])],
-                'budget' => ['nullable','numeric','min:0'],
-                'deadline_at' => ['nullable','date'],
-                'description' => ['nullable','string','max:5000'],
+                'number' => ['sometimes', 'required', 'string', 'max:80', $unique('toir_tenders', 'number')],
+                'title' => ['sometimes', 'required', 'string', 'max:255'],
+                'status' => ['sometimes', Rule::in(['draft', 'published', 'evaluation', 'completed', 'cancelled'])],
+                'budget' => ['nullable', 'numeric', 'min:0'],
+                'deadline_at' => ['nullable', 'date'],
+                'description' => ['nullable', 'string', 'max:5000'],
             ],
             default => abort(404),
         };
@@ -215,7 +216,7 @@ class ToirResourceController extends Controller
             });
         }
 
-        foreach (['status','category','asset_id','employee_id','maintenance_plan_id'] as $field) {
+        foreach (['status', 'category', 'asset_id', 'employee_id', 'maintenance_plan_id'] as $field) {
             $value = $request->query($field);
             if ($value !== null && $value !== '' && in_array($field, (new $model)->getConnection()->getSchemaBuilder()->getColumnListing((new $model)->getTable()), true)) {
                 $query->where($field, $value);
@@ -259,40 +260,40 @@ class ToirResourceController extends Controller
         $model = $this->model($resource);
         $rules = $this->rules($resource, $company);
 
-        foreach (['name','code','category','title','number','asset_id','next_due_date'] as $required) {
+        foreach (['name', 'code', 'category', 'title', 'number', 'asset_id', 'next_due_date'] as $required) {
             $mandatory = [
-                'assets' => ['name','code','category'],
+                'assets' => ['name', 'code', 'category'],
                 'employees' => ['name'],
-                'projects' => ['name','code'],
+                'projects' => ['name', 'code'],
                 'work-orders' => ['title'],
-                'plans' => ['title','asset_id','next_due_date'],
+                'plans' => ['title', 'asset_id', 'next_due_date'],
                 'supplies' => ['name'],
-                'tenders' => ['title','number'],
+                'tenders' => ['title', 'number'],
             ][$resource];
-            if (in_array($required,$mandatory,true)) {
+            if (in_array($required, $mandatory, true)) {
                 $rules[$required] = array_values(array_filter($rules[$required],
                     fn ($rule) => $rule !== 'sometimes'));
                 array_unshift($rules[$required], 'required');
             }
         }
         $values = $request->validate($rules);
-        if ($resource === 'plans' && (($values['interval_hours']??null)!==null xor
-            ($values['next_due_hours']??null)!==null)) {
-            throw ValidationException::withMessages(['interval_hours'=>'Для ТО по моточасам задайте интервал и порог наработки вместе.']);
+        if ($resource === 'plans' && (($values['interval_hours'] ?? null) !== null xor
+            ($values['next_due_hours'] ?? null) !== null)) {
+            throw ValidationException::withMessages(['interval_hours' => 'Для ТО по моточасам задайте интервал и порог наработки вместе.']);
         }
         $record = DB::transaction(function () use ($model, $values, $company, $request, $resource): Model {
-            $record = new $model();
+            $record = new $model;
             $record->fill($values);
             $record->company_id = $company->id;
             if ($resource === 'work-orders' && $record->crew_id &&
                 $record->planned_start && $record->planned_end) {
-                $this->planning->assertNoCrewConflict($company->id,(int)$record->crew_id,
-                    (string)$record->planned_start,(string)$record->planned_end);
+                $this->planning->assertNoCrewConflict($company->id, (int) $record->crew_id,
+                    (string) $record->planned_start, (string) $record->planned_end);
             }
             if ($resource === 'work-orders' && $record->employee_id &&
                 $record->planned_start && $record->planned_end) {
-                $this->planning->assertNoEmployeeConflict($company->id,(int)$record->employee_id,
-                    (string)$record->planned_start,(string)$record->planned_end);
+                $this->planning->assertNoEmployeeConflict($company->id, (int) $record->employee_id,
+                    (string) $record->planned_start, (string) $record->planned_end);
             }
             if ($resource === 'work-orders') {
                 $record->initiator_id = $request->user()->id;
@@ -313,7 +314,7 @@ class ToirResourceController extends Controller
 
     private function assertAssetParentIsValid(Company $company, ?ToirAsset $record, array $values): void
     {
-        if (!array_key_exists('parent_id', $values) || $values['parent_id'] === null) {
+        if (! array_key_exists('parent_id', $values) || $values['parent_id'] === null) {
             return;
         }
 
@@ -328,7 +329,7 @@ class ToirResourceController extends Controller
 
             $seen[$next] = true;
             $parent = ToirAsset::where('company_id', $company->id)->find($next);
-            if (!$parent) {
+            if (! $parent) {
                 throw ValidationException::withMessages([
                     'parent_id' => 'Родительский актив не найден в компании.',
                 ]);
@@ -342,8 +343,8 @@ class ToirResourceController extends Controller
         $company = $this->company($request);
         $this->authorizeWrite($company, $resource, 'update');
         $model = $this->model($resource);
-        $record = $model::query()->where('company_id',$company->id)->findOrFail($id);
-        if ($resource === 'work-orders' && in_array($record->status, ['closed','awaiting_acceptance'], true)) {
+        $record = $model::query()->where('company_id', $company->id)->findOrFail($id);
+        if ($resource === 'work-orders' && in_array($record->status, ['closed', 'awaiting_acceptance'], true)) {
             return response()->json([
                 'message' => 'Закрытый наряд нельзя редактировать. Для исправления откройте новый наряд.',
             ], 409);
@@ -353,10 +354,10 @@ class ToirResourceController extends Controller
             $this->assertAssetParentIsValid($company, $record, $values);
         }
         if ($resource === 'plans') {
-            $hours=$values['interval_hours']??$record->interval_hours;
-            $threshold=$values['next_due_hours']??$record->next_due_hours;
-            if(($hours===null xor $threshold===null)){
-                throw ValidationException::withMessages(['interval_hours'=>'Для плана по моточасам требуются интервал и порог наработки.']);
+            $hours = $values['interval_hours'] ?? $record->interval_hours;
+            $threshold = $values['next_due_hours'] ?? $record->next_due_hours;
+            if (($hours === null xor $threshold === null)) {
+                throw ValidationException::withMessages(['interval_hours' => 'Для плана по моточасам требуются интервал и порог наработки.']);
             }
         }
         if ($resource === 'work-orders') {
@@ -370,9 +371,9 @@ class ToirResourceController extends Controller
         }
         if ($resource === 'plans' && $record->workOrders()->where('status', '!=', 'closed')->exists()) {
             if (($values['status'] ?? null) === 'completed') {
-                return response()->json(['message'=>'Нельзя завершить план, пока есть незакрытый наряд.'],409);
+                return response()->json(['message' => 'Нельзя завершить план, пока есть незакрытый наряд.'], 409);
             }
-            foreach (['asset_id','employee_id','crew_id','next_due_date','periodicity_days','interval_hours','next_due_hours','duration_minutes'] as $field) {
+            foreach (['asset_id', 'employee_id', 'crew_id', 'next_due_date', 'periodicity_days', 'interval_hours', 'next_due_hours', 'duration_minutes'] as $field) {
                 if (array_key_exists($field, $values) && (string) ($record->{$field} ?? '') !== (string) ($values[$field] ?? '')) {
                     return response()->json([
                         'message' => 'Нельзя менять актив, исполнителя или график, пока наряд по плану не закрыт.',
@@ -383,7 +384,7 @@ class ToirResourceController extends Controller
         $before = $record->only(array_keys($values));
 
         DB::transaction(function () use ($record, $values, $before, $resource, $company, $request) {
-            if($resource==='work-orders'){
+            if ($resource === 'work-orders') {
                 $record = ToirWorkOrder::query()->where('company_id', $company->id)
                     ->lockForUpdate()->findOrFail($record->id);
                 if (in_array($record->status, ['closed', 'awaiting_acceptance'], true)) {
@@ -399,14 +400,18 @@ class ToirResourceController extends Controller
                     }
                 }
                 $before = $record->only(array_keys($values));
-                $crewId=$values['crew_id']??$record->crew_id;
-                $start=$values['planned_start']??$record->planned_start;
-                $end=$values['planned_end']??$record->planned_end;
-                if($crewId && $start && $end)$this->planning->assertNoCrewConflict(
-                    $company->id,(int)$crewId,(string)$start,(string)$end,(int)$record->id);
-                $employeeId=$values['employee_id']??$record->employee_id;
-                if($employeeId && $start && $end)$this->planning->assertNoEmployeeConflict(
-                    $company->id,(int)$employeeId,(string)$start,(string)$end,(int)$record->id);
+                $crewId = $values['crew_id'] ?? $record->crew_id;
+                $start = $values['planned_start'] ?? $record->planned_start;
+                $end = $values['planned_end'] ?? $record->planned_end;
+                if ($crewId && $start && $end) {
+                    $this->planning->assertNoCrewConflict(
+                        $company->id, (int) $crewId, (string) $start, (string) $end, (int) $record->id);
+                }
+                $employeeId = $values['employee_id'] ?? $record->employee_id;
+                if ($employeeId && $start && $end) {
+                    $this->planning->assertNoEmployeeConflict(
+                        $company->id, (int) $employeeId, (string) $start, (string) $end, (int) $record->id);
+                }
             }
             $record->fill($values)->save();
             if ($resource === 'work-orders' && $record->wasChanged()) {
@@ -424,7 +429,7 @@ class ToirResourceController extends Controller
         $company = $this->company($request);
         $this->authorizeWrite($company, $resource, 'delete');
         $model = $this->model($resource);
-        $record = $model::query()->where('company_id',$company->id)->findOrFail($id);
+        $record = $model::query()->where('company_id', $company->id)->findOrFail($id);
 
         if ($resource === 'work-orders') {
             return DB::transaction(function () use ($company, $id, $request): JsonResponse {
@@ -455,29 +460,29 @@ class ToirResourceController extends Controller
         }
 
         // Do not leave child equipment with a broken structural chain.
-        if ($resource === 'assets' && ToirAsset::where('parent_id',$id)->exists()) {
-            return response()->json(['message'=>'Сначала удалите или переместите вложенные активы.'],409);
+        if ($resource === 'assets' && ToirAsset::where('parent_id', $id)->exists()) {
+            return response()->json(['message' => 'Сначала удалите или переместите вложенные активы.'], 409);
         }
-        if ($resource === 'assets' && (ToirAssetReading::where('asset_id',$id)->exists() || ToirMaintenancePlan::where('asset_id',$id)->exists() || ToirWorkOrder::where('asset_id',$id)->exists() || ToirSupply::where('asset_id',$id)->exists())) {
-            return response()->json(['message'=>'Актив используется в планах или нарядах.'],409);
+        if ($resource === 'assets' && (ToirAssetReading::where('asset_id', $id)->exists() || ToirMaintenancePlan::where('asset_id', $id)->exists() || ToirWorkOrder::where('asset_id', $id)->exists() || ToirSupply::where('asset_id', $id)->exists())) {
+            return response()->json(['message' => 'Актив используется в планах или нарядах.'], 409);
         }
         if ($resource === 'employees' && (
-            ToirWorkOrder::where('employee_id',$id)->where('status','!=','closed')->exists()
-            || ToirMaintenancePlan::where('employee_id',$id)->exists()
-            || \Illuminate\Support\Facades\DB::table('toir_crew_members')->where('employee_id',$id)->exists()
-            || ToirCrew::where('lead_employee_id',$id)->exists()
+            ToirWorkOrder::where('employee_id', $id)->where('status', '!=', 'closed')->exists()
+            || ToirMaintenancePlan::where('employee_id', $id)->exists()
+            || DB::table('toir_crew_members')->where('employee_id', $id)->exists()
+            || ToirCrew::where('lead_employee_id', $id)->exists()
         )) {
-            return response()->json(['message'=>'Исполнитель используется в незакрытых нарядах или планах ТО.'],409);
+            return response()->json(['message' => 'Исполнитель используется в незакрытых нарядах или планах ТО.'], 409);
         }
-        if ($resource === 'projects' && ToirWorkOrder::where('project_id',$id)->exists()) {
-            return response()->json(['message'=>'Проект используется в нарядах.'],409);
+        if ($resource === 'projects' && ToirWorkOrder::where('project_id', $id)->exists()) {
+            return response()->json(['message' => 'Проект используется в нарядах.'], 409);
         }
         if ($resource === 'plans' && $record->workOrders()->exists()) {
-            return response()->json(['message'=>'План ТО связан с нарядами; его нельзя архивировать.'],409);
+            return response()->json(['message' => 'План ТО связан с нарядами; его нельзя архивировать.'], 409);
         }
         $record->delete();
 
-        return response()->json(['message'=>'Запись перенесена в архив.']);
+        return response()->json(['message' => 'Запись перенесена в архив.']);
     }
 
     public function overview(Request $request): JsonResponse
@@ -486,50 +491,51 @@ class ToirResourceController extends Controller
         $id = $company->id;
 
         return response()->json(['data' => [
-            'assets' => ToirAsset::where('company_id',$id)->count(),
-            'employees' => ToirEmployee::where('company_id',$id)->count(),
-            'projects' => ToirProject::where('company_id',$id)->count(),
-            'work_orders' => ToirWorkOrder::where('company_id',$id)->count(),
-            'waiting' => ToirWorkOrder::where('company_id',$id)->where('status','waiting')->count(),
-            'in_progress' => ToirWorkOrder::where('company_id',$id)->where('status','in_progress')->count(),
-            'overdue' => ToirWorkOrder::where('company_id',$id)->where('status','overdue')->count(),
-            'closed' => ToirWorkOrder::where('company_id',$id)->where('status','closed')->count(),
-            'plans' => ToirMaintenancePlan::where('company_id',$id)->count(),
-            'plans_overdue' => ToirMaintenancePlan::where('company_id',$id)->whereDate('next_due_date','<',now()->toDateString())->where('status','!=','completed')->count(),
-            'supplies_requested' => ToirSupply::where('company_id',$id)->where('status','requested')->count(),
-            'tenders' => ToirTender::where('company_id',$id)->count(),
+            'assets' => ToirAsset::where('company_id', $id)->count(),
+            'employees' => ToirEmployee::where('company_id', $id)->count(),
+            'projects' => ToirProject::where('company_id', $id)->count(),
+            'work_orders' => ToirWorkOrder::where('company_id', $id)->count(),
+            'waiting' => ToirWorkOrder::where('company_id', $id)->where('status', 'waiting')->count(),
+            'in_progress' => ToirWorkOrder::where('company_id', $id)->where('status', 'in_progress')->count(),
+            'overdue' => ToirWorkOrder::where('company_id', $id)->where('status', 'overdue')->count(),
+            'closed' => ToirWorkOrder::where('company_id', $id)->where('status', 'closed')->count(),
+            'plans' => ToirMaintenancePlan::where('company_id', $id)->count(),
+            'plans_overdue' => ToirMaintenancePlan::where('company_id', $id)->whereDate('next_due_date', '<', now()->toDateString())->where('status', '!=', 'completed')->count(),
+            'supplies_requested' => ToirSupply::where('company_id', $id)->where('status', 'requested')->count(),
+            'tenders' => ToirTender::where('company_id', $id)->count(),
         ]]);
     }
 
     public function schedule(Request $request): JsonResponse
     {
         $company = $this->company($request);
-        $range=$request->validate([
-            'from'=>['sometimes','date_format:Y-m-d'],
-            'to'=>['sometimes','date_format:Y-m-d','after_or_equal:from'],
+        $range = $request->validate([
+            'from' => ['sometimes', 'date_format:Y-m-d'],
+            'to' => ['sometimes', 'date_format:Y-m-d', 'after_or_equal:from'],
         ]);
-        $from=$range['from']??now()->startOfMonth()->subMonth()->toDateString();
-        $to=$range['to']??now()->addMonths(3)->toDateString();
-        if(Carbon::parse($from)->diffInDays(Carbon::parse($to))>180){
-            throw ValidationException::withMessages(['to'=>'Период календаря не должен превышать 180 дней.']);
+        $from = $range['from'] ?? now()->startOfMonth()->subMonth()->toDateString();
+        $to = $range['to'] ?? now()->addMonths(3)->toDateString();
+        if (Carbon::parse($from)->diffInDays(Carbon::parse($to)) > 180) {
+            throw ValidationException::withMessages(['to' => 'Период календаря не должен превышать 180 дней.']);
         }
-        $orders=ToirWorkOrder::where('company_id',$company->id)
-            ->whereDate('planned_start','>=',$from)->whereDate('planned_start','<=',$to)
-            ->with(['asset','employee','crew'])->orderBy('planned_start')->limit(1000)->get();
-        $plans=ToirMaintenancePlan::where('company_id',$company->id)
-            ->whereDate('next_due_date','>=',$from)->whereDate('next_due_date','<=',$to)
-            ->with(['asset','employee','crew'])->orderBy('next_due_date')->limit(1000)->get();
-        return response()->json(['data'=>[
-            'orders'=>$orders,'plans'=>$plans,
-            'range'=>['from'=>$from,'to'=>$to],
-            'truncated'=>count($orders)>=1000||count($plans)>=1000,
+        $orders = ToirWorkOrder::where('company_id', $company->id)
+            ->whereDate('planned_start', '>=', $from)->whereDate('planned_start', '<=', $to)
+            ->with(['asset', 'employee', 'crew'])->orderBy('planned_start')->limit(1000)->get();
+        $plans = ToirMaintenancePlan::where('company_id', $company->id)
+            ->whereDate('next_due_date', '>=', $from)->whereDate('next_due_date', '<=', $to)
+            ->with(['asset', 'employee', 'crew'])->orderBy('next_due_date')->limit(1000)->get();
+
+        return response()->json(['data' => [
+            'orders' => $orders, 'plans' => $plans,
+            'range' => ['from' => $from, 'to' => $to],
+            'truncated' => count($orders) >= 1000 || count($plans) >= 1000,
         ]]);
     }
 
     private function recordEvent(Company $company, ToirWorkOrder $record, Request $request,
         string $action, ?string $message, array $changes = []): void
     {
-        $event = new ToirWorkOrderEvent();
+        $event = new ToirWorkOrderEvent;
         $event->company_id = $company->id;
         $event->work_order_id = $record->id;
         $event->user_id = $request->user()->id;

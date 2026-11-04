@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\Company;
 use App\Models\ToirAsset;
 use App\Models\ToirEmployee;
-use App\Models\ToirWorkOrder;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -50,7 +49,7 @@ class ToirDomainTest extends TestCase
             'title' => 'Replace compressor seal',
             'asset_id' => $asset['id'],
             'employee_id' => $employee->id,
-            'type' => 'planned', 
+            'type' => 'planned',
             'status' => 'waiting',
         ])->assertCreated()->json('data');
 
@@ -104,7 +103,7 @@ class ToirDomainTest extends TestCase
         $other = $this->asMember('solutions');
 
         $this->getJson('/api/v1/resources/assets/'.$asset->id)->assertNotFound();
-        $this->patchJson('/api/v1/resources/assets/'.$asset->id, ['name'=>'Changed'])->assertNotFound();
+        $this->patchJson('/api/v1/resources/assets/'.$asset->id, ['name' => 'Changed'])->assertNotFound();
         $this->deleteJson('/api/v1/resources/assets/'.$asset->id)->assertNotFound();
 
         $this->postJson('/api/v1/resources/work-orders', [
@@ -118,23 +117,23 @@ class ToirDomainTest extends TestCase
 
     public function test_viewer_is_read_only(): void
     {
-        $this->asMember('viewer-company','viewer');
+        $this->asMember('viewer-company', 'viewer');
         $this->getJson('/api/v1/resources/assets')->assertOk();
         $this->postJson('/api/v1/resources/assets', [
-            'name' => 'Not allowed', 'code'=>'X','category'=>'tools',
+            'name' => 'Not allowed', 'code' => 'X', 'category' => 'tools',
         ])->assertForbidden();
-        $this->postJson('/api/v1/resources/work-orders', ['title'=>'Nope'])->assertForbidden();
+        $this->postJson('/api/v1/resources/work-orders', ['title' => 'Nope'])->assertForbidden();
     }
 
     public function test_engineer_can_create_orders_but_not_delete_assets(): void
     {
-        $company = $this->asMember('mining','engineer');
+        $company = $this->asMember('mining', 'engineer');
         $this->postJson('/api/v1/resources/work-orders', [
-            'title'=>'Check motors',
+            'title' => 'Check motors',
         ])->assertCreated();
 
         $asset = ToirAsset::forceCreate([
-            'company_id'=>$company->id, 'name'=>'Motor', 'code'=>'M1', 'category'=>'equipment',
+            'company_id' => $company->id, 'name' => 'Motor', 'code' => 'M1', 'category' => 'equipment',
         ]);
         $this->deleteJson('/api/v1/resources/assets/'.$asset->id)->assertForbidden();
     }
@@ -142,9 +141,9 @@ class ToirDomainTest extends TestCase
     public function test_search_filters_and_pagination_are_scoped(): void
     {
         $company = $this->asMember('mining');
-        foreach (['Pump', 'Generator', 'Pump motor'] as $i=>$name) {
+        foreach (['Pump', 'Generator', 'Pump motor'] as $i => $name) {
             ToirAsset::forceCreate([
-                'company_id' => $company->id, 'name'=>$name, 'code'=>'EQ'.($i+1), 'category'=>'equipment',
+                'company_id' => $company->id, 'name' => $name, 'code' => 'EQ'.($i + 1), 'category' => 'equipment',
             ]);
         }
         $this->getJson('/api/v1/resources/assets?search=Pump&per_page=1')
@@ -158,11 +157,11 @@ class ToirDomainTest extends TestCase
     {
         $company = $this->asMember('mining');
         $asset = ToirAsset::forceCreate([
-            'company_id'=>$company->id,'name'=>'Crane','code'=>'EQ-001','category'=>'equipment',
+            'company_id' => $company->id, 'name' => 'Crane', 'code' => 'EQ-001', 'category' => 'equipment',
         ]);
         $this->postJson('/api/v1/resources/plans', [
-            'title'=>'Quarterly inspection','asset_id'=>$asset->id,
-            'periodicity_days'=>90,'next_due_date'=>'2026-12-15'
+            'title' => 'Quarterly inspection', 'asset_id' => $asset->id,
+            'periodicity_days' => 90, 'next_due_date' => '2026-12-15',
         ])->assertCreated();
 
         $this->getJson('/api/v1/schedule')

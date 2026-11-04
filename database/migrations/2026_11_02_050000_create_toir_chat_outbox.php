@@ -4,9 +4,11 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration {
-    public function up(): void {
-        Schema::create('toir_chat_outbox', function(Blueprint $t){
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('toir_chat_outbox', function (Blueprint $t) {
             $t->id();
             $t->foreignId('company_id')->constrained()->cascadeOnDelete();
             $t->foreignId('chat_id')->constrained('toir_chats')->cascadeOnDelete();
@@ -21,5 +23,8 @@ return new class extends Migration {
         });
     }
 
-    public function down(): void { Schema::dropIfExists('toir_chat_outbox'); }
+    public function down(): void
+    {
+        Schema::dropIfExists('toir_chat_outbox');
+    }
 };

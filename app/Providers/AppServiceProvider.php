@@ -26,8 +26,7 @@ class AppServiceProvider extends ServiceProvider
             ];
         });
 
-        RateLimiter::for('toir-recovery', fn (Request $request) =>
-            Limit::perMinute(3)->by('recovery:'.$request->ip())
+        RateLimiter::for('toir-recovery', fn (Request $request) => Limit::perMinute(3)->by('recovery:'.$request->ip())
         );
 
         ResetPassword::createUrlUsing(function ($user, string $token): string {

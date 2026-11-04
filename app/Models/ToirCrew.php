@@ -9,14 +9,23 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 final class ToirCrew extends Model
 {
-    protected $table='toir_crews';
-    protected $guarded=['id'];
+    protected $table = 'toir_crews';
 
-    public function lead(): BelongsTo { return $this->belongsTo(ToirEmployee::class,'lead_employee_id'); }
+    protected $guarded = ['id'];
+
+    public function lead(): BelongsTo
+    {
+        return $this->belongsTo(ToirEmployee::class, 'lead_employee_id');
+    }
+
     public function members(): BelongsToMany
     {
-        return $this->belongsToMany(ToirEmployee::class,'toir_crew_members','crew_id','employee_id')
-            ->withPivot(['role','company_id'])->withTimestamps();
+        return $this->belongsToMany(ToirEmployee::class, 'toir_crew_members', 'crew_id', 'employee_id')
+            ->withPivot(['role', 'company_id'])->withTimestamps();
     }
-    public function shifts(): HasMany {return $this->hasMany(ToirCrewShift::class,'crew_id');}
+
+    public function shifts(): HasMany
+    {
+        return $this->hasMany(ToirCrewShift::class, 'crew_id');
+    }
 }

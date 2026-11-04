@@ -21,23 +21,26 @@ final class ToirChatSignal implements ShouldBroadcastNow
         public array $metadata = [],
     ) {}
 
-    public function broadcastAs(): string { return 'toir.chat.changed'; }
+    public function broadcastAs(): string
+    {
+        return 'toir.chat.changed';
+    }
 
     public function broadcastOn(): array
     {
         return collect($this->recipients)->unique()
-            ->map(fn($id)=>new PrivateChannel('toir.company.'.$this->companyId.'.user.'.$id))
+            ->map(fn ($id) => new PrivateChannel('toir.company.'.$this->companyId.'.user.'.$id))
             ->all();
     }
 
     public function broadcastWith(): array
     {
         return [
-            'company_id'=>$this->companyId,
-            'chat_id'=>$this->chatId,
-            'kind'=>$this->kind,
-            'message_id'=>$this->messageId,
-            'metadata'=>$this->metadata,
+            'company_id' => $this->companyId,
+            'chat_id' => $this->chatId,
+            'kind' => $this->kind,
+            'message_id' => $this->messageId,
+            'metadata' => $this->metadata,
         ];
     }
 }

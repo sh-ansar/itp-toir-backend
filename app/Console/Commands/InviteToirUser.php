@@ -24,8 +24,9 @@ class InviteToirUser extends Command
 
     public function handle(): int
     {
-        if (in_array(config('mail.default'), ['log', 'array'], true) && !app()->environment('testing')) {
+        if (in_array(config('mail.default'), ['log', 'array'], true) && ! app()->environment('testing')) {
             $this->error('Configure a real SMTP mail transport before inviting users.');
+
             return self::FAILURE;
         }
 
@@ -47,6 +48,7 @@ class InviteToirUser extends Command
             foreach ($validation->errors()->all() as $error) {
                 $this->error($error);
             }
+
             return self::FAILURE;
         }
 
@@ -55,8 +57,9 @@ class InviteToirUser extends Command
             ->where('is_active', true)
             ->first();
 
-        if (!$company) {
+        if (! $company) {
             $this->error('Company is disabled or missing.');
+
             return self::FAILURE;
         }
 
@@ -87,10 +90,12 @@ class InviteToirUser extends Command
 
         if ($status !== Password::RESET_LINK_SENT) {
             $this->error('Account created but the invitation email could not be sent. Configure SMTP and resend a recovery link.');
+
             return self::FAILURE;
         }
 
         $this->info('User invited. The one-use setup link was delivered through the configured mail transport.');
+
         return self::SUCCESS;
     }
 }
