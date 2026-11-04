@@ -384,6 +384,21 @@ class ToirResourceController extends Controller
 
         DB::transaction(function () use ($record, $values, $before, $resource, $company, $request) {
             if($resource==='work-orders'){
+                $record = ToirWorkOrder::query()->where('company_id', $company->id)
+                    ->lockForUpdate()->findOrFail($record->id);
+                if (in_array($record->status, ['closed', 'awaiting_acceptance'], true)) {
+                    abort(409, 'Нельзя изменять завершённый наряд или наряд на приёмке.');
+                }
+                if ($record->status === 'in_progress') {
+                    foreach (['asset_id', 'project_id', 'employee_id', 'crew_id', 'type',
+                        'planned_start', 'planned_end'] as $field) {
+                        if (array_key_exists($field, $values)
+                            && (string) ($record->{$field} ?? '') !== (string) ($values[$field] ?? '')) {
+                            abort(409, 'После начала работ нельзя менять оборудование, назначение или график.');
+                        }
+                    }
+                }
+                $before = $record->only(array_keys($values));
                 $crewId=$values['crew_id']??$record->crew_id;
                 $start=$values['planned_start']??$record->planned_start;
                 $end=$values['planned_end']??$record->planned_end;
