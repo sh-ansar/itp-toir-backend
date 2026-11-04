@@ -147,6 +147,23 @@ class ToirAuthenticationTest extends TestCase
         $this->assertSame($known->json('message'), $unknown->json('message'));
     }
 
+    public function test_recovery_smtp_failure_does_not_disclose_existing_account(): void
+    {
+        [$user] = $this->member();
+        Password::shouldReceive('sendResetLink')
+            ->once()
+            ->andThrow(new \RuntimeException('Simulated SMTP transport failure'));
+
+        $known = $this->postJson('/api/v1/auth/password/forgot', [
+            'email' => $user->email,
+        ])->assertOk();
+        $unknown = $this->postJson('/api/v1/auth/password/forgot', [
+            'email' => 'nonexistent@toir.test',
+        ])->assertOk();
+
+        $this->assertSame($known->json('message'), $unknown->json('message'));
+    }
+
     public function test_valid_reset_token_changes_password(): void
     {
         [$user] = $this->member();
