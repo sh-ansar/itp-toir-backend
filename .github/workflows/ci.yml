@@ -25,7 +25,7 @@ jobs:
       - name: Run tests
         run: php artisan test
   format:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     permissions:
       contents: read
     steps:
