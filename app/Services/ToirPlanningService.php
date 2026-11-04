@@ -583,9 +583,9 @@ final class ToirPlanningService
                         'duration_minutes' => $minutes, 'initiator_id' => $request->user()->id,
                         'planned_start' => $starts, 'planned_end' => $ends,
                     ]);
-                    $order->number = 'MRO-'.str_pad((string) $order->id,6,'0',STR_PAD_LEFT);
+                    $order->number = 'MRO-'.str_pad((string) $order->id, 6, '0', STR_PAD_LEFT);
                     $order->save();
-                    $this->checklist->snapshot($plan,$order);
+                    $this->checklist->snapshot($plan, $order);
                     ToirWorkOrderEvent::forceCreate([
                         'company_id' => $company->id, 'work_order_id' => $order->id,
                         'user_id' => $request->user()->id,

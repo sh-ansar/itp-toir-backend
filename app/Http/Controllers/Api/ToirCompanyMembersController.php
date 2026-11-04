@@ -200,7 +200,7 @@ final class ToirCompanyMembersController extends Controller
         if ($status !== Password::RESET_LINK_SENT) {
             return response()->json(['message' => 'Не удалось отправить письмо.'], 503);
         }
-        AuthAudit::record('auth.member.invitation_resent',$request->user(),$company,['target_user_id' => $user->id]);
+        AuthAudit::record('auth.member.invitation_resent', $request->user(), $company, ['target_user_id' => $user->id]);
 
         return response()->json(['message' => 'Ссылка для активации отправлена.']);
     }

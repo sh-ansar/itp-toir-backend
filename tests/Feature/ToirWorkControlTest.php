@@ -70,6 +70,6 @@ final class ToirWorkControlTest extends TestCase
         $this->postJson('/api/v1/work-orders/'.$id.'/transition', [
             'action' => 'complete', 'comment' => 'Bearing replaced', 'actual_labor_minutes' => 120,
         ])->assertOk()->assertJsonPath('data.status', 'awaiting_acceptance')
-            ->assertJsonPath('data.actual_labor_minutes',120);
+            ->assertJsonPath('data.actual_labor_minutes', 120);
     }
 }

@@ -78,6 +78,6 @@ final class ToirRoleMatrixAcceptanceTest extends TestCase
         $this->postJson($url, $payload)->assertForbidden();
         $this->assertSame('awaiting_acceptance', $order->fresh()->status);
         $this->actingAs($inspector)->withSession(['toir_company_id' => $company->id]);
-        $this->postJson($url, $payload)->assertOk()->assertJsonPath('data.status','closed');
+        $this->postJson($url, $payload)->assertOk()->assertJsonPath('data.status', 'closed');
     }
 }

@@ -239,8 +239,8 @@ final class ToirOperationsTest extends TestCase
             $meter = collect($forecast)->firstWhere('trigger', 'operating_hours');
             $this->assertNotNull($meter);
             $this->assertTrue($meter['estimated']);
-            $this->assertEqualsWithDelta(8,$meter['daily_hours_estimate'],0.1);
-            $this->assertSame('2026-11-04',$meter['date']);
+            $this->assertEqualsWithDelta(8, $meter['daily_hours_estimate'], 0.1);
+            $this->assertSame('2026-11-04', $meter['date']);
         } finally {
             Carbon::setTestNow();
         }

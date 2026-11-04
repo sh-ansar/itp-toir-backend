@@ -406,16 +406,16 @@ final class ToirChatController extends Controller
         $company = $this->company($request);
         $this->chat($company, $id, $request->user());
         $msg = ToirChatMessage::where('company_id', $company->id)
-            ->where('chat_id',$id)->findOrFail($messageId);
-        abort_unless($msg->user_id === $request->user()->id,403,'Удалять можно только свои сообщения.');
-        abort_if($msg->created_at->lt(now()->subMinutes(15)),409,'Время удаления истекло.');
+            ->where('chat_id', $id)->findOrFail($messageId);
+        abort_unless($msg->user_id === $request->user()->id, 403, 'Удалять можно только свои сообщения.');
+        abort_if($msg->created_at->lt(now()->subMinutes(15)), 409, 'Время удаления истекло.');
         if (! $msg->deleted_at) {
-            DB::transaction(function () use ($msg,$company) {
+            DB::transaction(function () use ($msg, $company) {
                 $msg->deleted_at = now();
                 $msg->body = '';
                 $msg->save();
-                ToirChatDeliveryService::changed(ToirChat::where('company_id',$company->id)->findOrFail($msg->chat_id),'deleted',$msg);
-            },3);
+                ToirChatDeliveryService::changed(ToirChat::where('company_id', $company->id)->findOrFail($msg->chat_id), 'deleted', $msg);
+            }, 3);
         }
 
         return response()->json(['data' => $this->messageData($msg)]);

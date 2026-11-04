@@ -63,6 +63,6 @@ final class ToirAcceptanceSeedTest extends TestCase
         $this->getJson('/api/v1/overview')->assertOk();
         $this->getJson('/api/v1/chats')->assertOk()->assertJsonCount(1, 'data');
         $this->assertDatabaseHas('toir_chats', ['company_id' => $company->id, 'title' => '[ТЕСТ] Канал ТОиР QA26']);
-        $this->assertSame(1, DB::table('toir_chat_messages')->where('company_id',$company->id)->count());
+        $this->assertSame(1, DB::table('toir_chat_messages')->where('company_id', $company->id)->count());
     }
 }

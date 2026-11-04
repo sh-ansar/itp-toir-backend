@@ -162,6 +162,6 @@ final class ToirChatTest extends TestCase
     public function test_no_anonymous_chat_access(): void
     {
         $this->getJson('/api/v1/chats')->assertUnauthorized();
-        $this->postJson('/api/v1/chats',['kind' => 'channel', 'title' => 'Hidden'])->assertUnauthorized();
+        $this->postJson('/api/v1/chats', ['kind' => 'channel', 'title' => 'Hidden'])->assertUnauthorized();
     }
 }

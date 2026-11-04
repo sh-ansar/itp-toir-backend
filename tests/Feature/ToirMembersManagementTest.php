@@ -101,6 +101,6 @@ final class ToirMembersManagementTest extends TestCase
             'name' => 'Existing user', 'email' => $verified->email, 'role' => 'viewer',
         ])->assertCreated()->assertJsonPath('data.email_sent', false);
         $this->assertDatabaseHas('company_user', ['company_id' => $company->id, 'user_id' => $verified->id, 'role' => 'viewer']);
-        Notification::assertSentTo($verified,ToirCompanyAccessNotification::class);
+        Notification::assertSentTo($verified, ToirCompanyAccessNotification::class);
     }
 }

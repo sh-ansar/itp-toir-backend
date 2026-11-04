@@ -246,8 +246,8 @@ final class ToirStockTest extends TestCase
         $material = '/api/v1/work-orders/'.$order->id.'/materials';
         $this->postJson($material, ['action' => 'consume', 'stock_item_id' => $item['id'], 'quantity' => '1'])->assertOk()
             ->assertJsonPath('data.line.actual_cost', '250.50');
-        $this->patchJson('/api/v1/stock/items/'.$item['id'],['unit_cost' => '300.00'])->assertOk();
-        $this->postJson($material,['action' => 'consume', 'stock_item_id' => $item['id'], 'quantity' => '1'])->assertOk()
-            ->assertJsonPath('data.line.actual_cost','550.50');
+        $this->patchJson('/api/v1/stock/items/'.$item['id'], ['unit_cost' => '300.00'])->assertOk();
+        $this->postJson($material, ['action' => 'consume', 'stock_item_id' => $item['id'], 'quantity' => '1'])->assertOk()
+            ->assertJsonPath('data.line.actual_cost', '550.50');
     }
 }
