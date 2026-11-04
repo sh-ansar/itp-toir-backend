@@ -308,7 +308,7 @@ final class ToirWorkflowTest extends TestCase
         $this->patchJson('/api/v1/resources/assets/'.$root->id, [
             'parent_id' => $grandchild->id,
         ])->assertUnprocessable()->assertJsonValidationErrors('parent_id');
-        $this->patchJson('/api/v1/resources/assets/'.$child->id,[
+        $this->patchJson('/api/v1/resources/assets/'.$child->id, [
             'parent_id' => $child->id,
         ])->assertUnprocessable()->assertJsonValidationErrors('parent_id');
         $this->deleteJson('/api/v1/resources/assets/'.$root->id)->assertStatus(409);

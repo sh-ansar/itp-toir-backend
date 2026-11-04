@@ -101,7 +101,7 @@ final class WorkToirChatOutbox extends Command
                 }
             } while (! $this->option('once'));
         } finally {
-            flock($lock,LOCK_UN);
+            flock($lock, LOCK_UN);
             fclose($lock);
         }
 

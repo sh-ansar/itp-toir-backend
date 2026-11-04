@@ -103,7 +103,7 @@ final class ToirOperationalAcceptanceTest extends TestCase
         $this->assertDatabaseHas('toir_stock_items', ['id' => $sku['id'], 'quantity_on_hand' => '3.000', 'quantity_reserved' => '0.000']);
         $this->assertSame(
             ['fault_reported', 'assigned', 'material_reserve', 'start', 'material_consume', 'complete', 'rejected', 'complete', 'accepted'],
-            ToirWorkOrderEvent::where('work_order_id',$id)->orderBy('id')->pluck('action')->all()
+            ToirWorkOrderEvent::where('work_order_id', $id)->orderBy('id')->pluck('action')->all()
         );
     }
 }

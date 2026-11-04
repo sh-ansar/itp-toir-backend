@@ -330,12 +330,12 @@ final class ToirOperationsController extends Controller
         $from = $shift->work_date.' '.$shift->starts_at;
         $to = $shift->work_date.' '.$shift->ends_at;
         $occupied = ToirWorkOrder::where('company_id', $company->id)
-            ->where('crew_id',$shift->crew_id)->where('planned_start','<',$to)
-            ->where('planned_end','>',$from)->exists();
+            ->where('crew_id', $shift->crew_id)->where('planned_start', '<', $to)
+            ->where('planned_end', '>', $from)->exists();
         if ($occupied) {
             return response()->json([
                 'message' => 'Перенесите наряды бригады перед удалением смены.',
-            ],409);
+            ], 409);
         }
         $shift->delete();
 

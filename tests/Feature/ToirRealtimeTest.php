@@ -156,7 +156,7 @@ final class ToirRealtimeTest extends TestCase
         DB::table('toir_chat_outbox')->delete();
         $this->postJson('/api/v1/chats/'.$chat['id'].'/typing')->assertOk();
         $this->assertDatabaseHas('toir_chat_outbox', ['kind' => 'typing', 'chat_id' => $chat['id']]);
-        $this->login($c,$u);
+        $this->login($c, $u);
         $this->postJson('/api/v1/chats/'.$chat['id'].'/typing')->assertForbidden();
     }
 }

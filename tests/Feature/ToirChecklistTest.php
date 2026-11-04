@@ -198,8 +198,8 @@ final class ToirChecklistTest extends TestCase
             $this->patchJson('/api/v1/work-orders/'.$order['id'].'/checklist/'.$step['id'], [
                 'status' => 'done', 'numeric_value' => 100,
             ])->assertNotFound();
-            $this->assertSame(1,DB::table('toir_work_order_steps')
-                ->where('company_id',$company->id)->count());
+            $this->assertSame(1, DB::table('toir_work_order_steps')
+                ->where('company_id', $company->id)->count());
         } finally {
             Carbon::setTestNow();
         }

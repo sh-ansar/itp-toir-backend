@@ -96,7 +96,7 @@ final class ToirDispatchReviewTest extends TestCase
         $order->status = 'awaiting_acceptance';
         $order->save();
         $this->login($manager, $company);
-        $this->postJson('/api/v1/work-orders/'.$order->id.'/review',[
+        $this->postJson('/api/v1/work-orders/'.$order->id.'/review', [
             'decision' => 'accept', 'comment' => 'My own work'])->assertForbidden();
     }
 }
