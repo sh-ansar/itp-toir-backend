@@ -12,6 +12,7 @@ use App\Models\ToirSupply;
 use App\Models\ToirTender;
 use App\Models\ToirWorkOrder;
 use App\Models\ToirWorkOrderEvent;
+use App\Models\ToirWorkOrderMaterial;
 use App\Models\ToirCrew;
 use App\Models\ToirAssetReading;
 use App\Services\ToirPlanningService;
@@ -435,6 +436,16 @@ class ToirResourceController extends Controller
             $record->maintenance_plan_id !== null || in_array($record->status,['in_progress','awaiting_acceptance'],true)
         )) {
             return response()->json(['message'=>'Активный наряд или наряд из плана ТО нельзя архивировать.'],409);
+        }
+        if ($resource === 'work-orders' && ToirWorkOrderMaterial::query()
+            ->where('company_id', $company->id)
+            ->where('work_order_id', $record->id)
+            ->where(fn ($query) => $query->where('quantity_reserved', '>', 0)
+                ->orWhere('quantity_used', '>', 0))
+            ->exists()) {
+            return response()->json([
+                'message' => 'Наряд связан со складскими операциями. Перед архивированием снимите резерв. Наряды со списаниями сохраняются для аудита.',
+            ], 409);
         }
         if ($resource === 'work-orders') {
             DB::transaction(function () use ($record, $company, $request) {
