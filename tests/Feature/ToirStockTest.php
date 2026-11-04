@@ -79,6 +79,64 @@ final class ToirStockTest extends TestCase
         $this->assertDatabaseCount('toir_stock_movements',4);
     }
 
+    public function test_archive_requires_releasing_stock_and_preserves_consumption_history(): void
+    {
+        [$company, $user] = $this->member('stock-archive-qa');
+        $order = $this->order($company, $user);
+        $item = $this->postJson('/api/v1/stock/items', $this->sku())
+            ->assertCreated()->json('data');
+
+        $this->postJson('/api/v1/stock/items/'.$item['id'].'/receive', [
+            'quantity' => '5.000',
+        ])->assertOk();
+
+        $path = '/api/v1/work-orders/'.$order->id.'/materials';
+        $archive = '/api/v1/resources/work-orders/'.$order->id;
+        $this->postJson($path, [
+            'stock_item_id' => $item['id'], 'action' => 'reserve', 'quantity' => '2.000',
+        ])->assertOk();
+        $this->deleteJson($archive)->assertStatus(409);
+        $this->assertDatabaseHas('toir_stock_items', [
+            'id' => $item['id'], 'quantity_reserved' => '2.000',
+        ]);
+
+        $this->postJson($path, [
+            'stock_item_id' => $item['id'], 'action' => 'release', 'quantity' => '2.000',
+        ])->assertOk();
+        $this->deleteJson($archive)->assertOk();
+        $this->assertDatabaseHas('toir_stock_items', [
+            'id' => $item['id'], 'quantity_reserved' => '0.000',
+        ]);
+
+        // The material ledger must remain discoverable after a completed repair.
+        $finished = ToirWorkOrder::forceCreate([
+            'company_id' => $company->id,
+            'asset_id' => $order->asset_id,
+            'employee_id' => $order->employee_id,
+            'initiator_id' => $user->id,
+            'title' => 'Completed repair with parts',
+            'number' => 'QA-CONSUMED-001',
+            'type' => 'planned',
+            'status' => 'waiting',
+        ]);
+        $finishedUrl = '/api/v1/work-orders/'.$finished->id;
+        $this->postJson($finishedUrl.'/transition', ['action' => 'start'])->assertOk();
+        $this->postJson($finishedUrl.'/materials', [
+            'stock_item_id' => $item['id'], 'action' => 'consume', 'quantity' => '1.000',
+        ])->assertOk();
+        $this->postJson($finishedUrl.'/transition', [
+            'action' => 'complete', 'comment' => 'Maintenance finished',
+        ])->assertOk()->assertJsonPath('data.status', 'closed');
+        $this->deleteJson('/api/v1/resources/work-orders/'.$finished->id)->assertStatus(409);
+        $this->assertDatabaseHas('toir_stock_items', [
+            'id' => $item['id'], 'quantity_on_hand' => '4.000',
+            'quantity_reserved' => '0.000',
+        ]);
+        $this->assertDatabaseHas('toir_work_order_materials', [
+            'work_order_id' => $finished->id, 'quantity_used' => '1.000',
+        ]);
+    }
+
     public function test_reserved_stock_blocks_close_until_consumed_or_released(): void
     {
         [$company,$user]=$this->member('mining');
