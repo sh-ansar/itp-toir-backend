@@ -142,16 +142,20 @@ class AuthController extends Controller
         $payload = $request->validate(['email' => ['required', 'email:rfc', 'max:255']]);
         $email = Str::lower(trim($payload['email']));
 
-        if (in_array(config('mail.default'), ['log', 'array'], true) && !app()->environment('testing')) {
+        if (!app(\App\Services\ToirMailReadiness::class)->configured()) {
             return response()->json([
                 'message' => 'Восстановление пароля по почте временно недоступно. Обратитесь к администратору.',
             ], 503);
         }
 
-        // Do not reveal whether this mailbox belongs to a user.
+        // Do not disclose account existence, even if SMTP transport fails only for known accounts.
         $user = User::where('email', $email)->where('is_active', true)->first();
         if ($user) {
-            Password::sendResetLink(['email' => $email]);
+            try {
+                Password::sendResetLink(['email' => $email]);
+            } catch (\Throwable $exception) {
+                report($exception);
+            }
         }
 
         return response()->json([
