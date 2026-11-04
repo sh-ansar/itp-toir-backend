@@ -79,6 +79,36 @@ final class ToirStockTest extends TestCase
         $this->assertDatabaseCount('toir_stock_movements',4);
     }
 
+    public function test_in_progress_order_cannot_bypass_dispatch_permissions_via_generic_edit(): void
+    {
+        [$company, $user] = $this->member('active-edit-qa');
+        $order = $this->order($company, $user);
+        $alternate = ToirEmployee::forceCreate([
+            'company_id' => $company->id,
+            'name' => 'Alternate technician',
+            'status' => 'active',
+        ]);
+
+        $url = '/api/v1/resources/work-orders/'.$order->id;
+        $this->postJson('/api/v1/work-orders/'.$order->id.'/transition', [
+            'action' => 'start',
+        ])->assertOk()->assertJsonPath('data.status', 'in_progress');
+
+        $this->patchJson($url, ['employee_id' => $alternate->id])->assertStatus(409);
+        $this->patchJson($url, ['asset_id' => null])->assertStatus(409);
+        $this->patchJson($url, ['type' => 'emergency'])->assertStatus(409);
+        $this->patchJson($url, [
+            'description' => 'Progress notes may still be updated',
+        ])->assertOk();
+
+        $this->assertDatabaseHas('toir_work_orders', [
+            'id' => $order->id,
+            'employee_id' => $order->employee_id,
+            'asset_id' => $order->asset_id,
+            'description' => 'Progress notes may still be updated',
+        ]);
+    }
+
     public function test_archive_requires_releasing_stock_and_preserves_consumption_history(): void
     {
         [$company, $user] = $this->member('stock-archive-qa');
