@@ -18,11 +18,25 @@ jobs:
           coverage: none
       - name: Install dependencies
         run: composer install --prefer-dist --no-interaction --no-progress
-      - name: Verify PHP style with Laravel Pint
-        run: php vendor/bin/pint --test --preset laravel
       - name: Prepare test environment
         run: |
           cp .env.example .env
           php artisan key:generate
       - name: Run tests
         run: php artisan test
+  format:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: PHP 8.4 matching project formatting baseline
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: mbstring, pdo_sqlite, openssl, fileinfo
+          coverage: none
+      - name: Install locked PHP dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+      - name: Validate style using Laravel Pint
+        run: php vendor/bin/pint --test --preset laravel
