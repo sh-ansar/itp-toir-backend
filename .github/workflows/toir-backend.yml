@@ -22,6 +22,8 @@ jobs:
           coverage: none
       - name: Install locked PHP dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
+      - name: Enforce Laravel Pint formatting
+        run: php vendor/bin/pint --test --preset laravel
       - name: Prepare isolated Laravel test environment
         run: |
           cp .env.example .env
