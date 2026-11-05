@@ -1,0 +1,28 @@
+<?php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+return new class extends Migration {
+ public function up():void {
+  Schema::create('mro_signup_requests', function (Blueprint $t) {
+   $t->id(); $t->string('email')->unique(); $t->string('name',120);
+   $t->string('company_name',200); $t->string('plan_code',40)->nullable();
+   $t->char('token_hash',64)->unique(); $t->timestamp('expires_at')->index(); $t->timestamps();
+  });
+  Schema::create('mro_admin_grants',function(Blueprint $t){$t->id();$t->foreignId('user_id')->constrained()->cascadeOnDelete();$t->string('permission',64);$t->foreignId('granted_by')->nullable()->constrained('users')->nullOnDelete();$t->timestamp('created_at');$t->unique(['user_id','permission']);});
+  Schema::create('mro_audits',function(Blueprint $t){$t->id();$t->foreignId('actor_id')->nullable()->constrained('users')->nullOnDelete();$t->foreignId('company_id')->nullable()->constrained()->nullOnDelete();$t->string('action',100);$t->string('subject',100);$t->json('data');$t->timestamp('created_at')->index();$t->index(['company_id','id']);});
+  Schema::create('mro_plans',function(Blueprint $t){$t->id();$t->string('code',40)->unique();$t->timestamps();});
+  Schema::create('mro_plan_versions',function(Blueprint $t){$t->id();$t->foreignId('plan_id')->constrained('mro_plans')->restrictOnDelete();$t->unsignedInteger('version');$t->string('status',20)->default('draft')->index();$t->boolean('is_public')->default(false);$t->integer('display_order')->default(0);$t->json('terms');$t->char('sha256',64);$t->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();$t->timestamps();$t->unique(['plan_id','version']);});
+  Schema::create('mro_subscriptions',function(Blueprint $t){$t->id();$t->foreignId('company_id')->unique()->constrained()->restrictOnDelete();$t->foreignId('plan_version_id')->constrained('mro_plan_versions')->restrictOnDelete();$t->json('snapshot');$t->string('status',20);$t->timestamp('starts_at');$t->timestamp('ends_at')->nullable();$t->foreignId('assigned_by')->nullable()->constrained('users')->nullOnDelete();$t->timestamps();});
+  Schema::create('mro_billing_profiles',function(Blueprint $t){$t->id();$t->string('key',64)->unique();$t->foreignId('company_id')->nullable()->unique()->constrained()->restrictOnDelete();$t->json('details');$t->timestamps();});
+  Schema::create('mro_invoice_sequences',function(Blueprint $t){$t->string('key',40)->primary();$t->unsignedBigInteger('value')->default(0);});
+  Schema::create('mro_invoices',function(Blueprint $t){$t->id();$t->foreignId('company_id')->constrained()->restrictOnDelete();$t->string('number',80)->nullable()->unique();$t->string('status',20)->default('draft')->index();$t->json('snapshot');$t->char('currency',3);$t->unsignedBigInteger('subtotal_minor');$t->unsignedBigInteger('tax_minor');$t->unsignedBigInteger('total_minor');$t->date('due_date');$t->string('pdf_path')->nullable();$t->char('pdf_sha256',64)->nullable();$t->unsignedBigInteger('pdf_size')->nullable();$t->foreignId('replaces_id')->nullable()->constrained('mro_invoices')->restrictOnDelete();$t->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();$t->timestamp('issued_at')->nullable();$t->timestamps();$t->index(['company_id','id']);});
+  Schema::create('mro_payment_proofs',function(Blueprint $t){$t->id();$t->foreignId('invoice_id')->constrained('mro_invoices')->restrictOnDelete();$t->foreignId('user_id')->nullable()->constrained()->nullOnDelete();$t->string('path');$t->char('sha256',64);$t->unsignedBigInteger('size');$t->string('mime',80);$t->string('status',20)->default('pending');$t->foreignId('reviewed_by')->nullable()->constrained('users')->nullOnDelete();$t->text('review_note')->nullable();$t->timestamps();});
+  Schema::create('mro_legal_versions',function(Blueprint $t){$t->id();$t->string('type',40);$t->string('locale',8);$t->string('jurisdiction',8);$t->unsignedInteger('version');$t->string('status',20)->default('draft');$t->string('title',250);$t->longText('body');$t->json('operator_snapshot');$t->char('sha256',64);$t->string('acceptance',20)->default('acknowledged');$t->boolean('required')->default(false);$t->timestamp('effective_at')->nullable();$t->foreignId('approved_by')->nullable()->constrained('users')->nullOnDelete();$t->text('approval_note')->nullable();$t->timestamp('published_at')->nullable();$t->string('pdf_path')->nullable();$t->char('pdf_sha256',64)->nullable();$t->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();$t->timestamps();$t->unique(['type','locale','jurisdiction','version'],'mro_legal_version_unique');$t->index(['status','locale','jurisdiction']);});
+  Schema::create('mro_legal_consents',function(Blueprint $t){$t->id();$t->foreignId('user_id')->nullable()->constrained()->nullOnDelete();$t->foreignId('company_id')->nullable()->constrained()->nullOnDelete();$t->foreignId('legal_version_id')->constrained('mro_legal_versions')->restrictOnDelete();$t->char('sha256',64);$t->string('action',20);$t->string('source',32);$t->string('locale',8);$t->timestamp('created_at');$t->unique(['user_id','legal_version_id','action'],'mro_legal_acceptance_unique');$t->index(['company_id','created_at']);});
+
+ }
+ public function down():void {
+  foreach(['mro_legal_consents','mro_legal_versions','mro_payment_proofs','mro_invoices','mro_invoice_sequences','mro_billing_profiles','mro_subscriptions','mro_plan_versions','mro_plans','mro_audits','mro_admin_grants','mro_signup_requests'] as $name) Schema::dropIfExists($name);
+ }
+};

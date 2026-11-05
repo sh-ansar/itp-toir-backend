@@ -1,0 +1,3 @@
+<!doctype html><html><head><meta charset="UTF-8"><style>@page{margin:22mm 18mm}body{font-family:"DejaVu Sans",sans-serif;font-size:10px;line-height:1.6;color:#17202b}h1{font-size:19px;font-weight:normal}.meta{font-size:8px;color:#637084;overflow-wrap:anywhere}.body{white-space:pre-wrap}.draft{color:#af4924}</style></head><body>
+@if($document->status!=='published')<p class="draft">ПРОЕКТ — НЕ СОГЛАСОВАН И НЕ ОПУБЛИКОВАН</p>@endif
+<h1>{{ $document->title }}</h1><p class="meta">{{ $document->jurisdiction }} · {{ $document->locale }} · v{{ $document->version }} · {{ $document->effective_at ?: '—' }}<br>SHA-256: {{ $document->sha256 }}</p><div class="body">{{ $document->body }}</div></body></html>

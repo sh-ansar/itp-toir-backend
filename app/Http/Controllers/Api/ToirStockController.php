@@ -10,9 +10,9 @@ use App\Models\ToirSupply;
 use App\Models\ToirWorkOrder;
 use App\Models\ToirWorkOrderEvent;
 use App\Models\ToirWorkOrderMaterial;
+use App\Support\ToirTransaction;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -186,7 +186,7 @@ final class ToirStockController extends Controller
         $this->administrator($company);
         $v = $request->validate(['quantity' => self::QTY, 'note' => ['nullable', 'string', 'max:500']]);
         $qty = self::milli((string) $v['quantity']);
-        $item = DB::transaction(function () use ($company, $id, $qty, $v, $request) {
+        $item = ToirTransaction::run(function () use ($company, $id, $qty, $v, $request) {
             $item = ToirStockItem::where('company_id', $company->id)->lockForUpdate()->findOrFail($id);
             $next = self::milli($item->quantity_on_hand) + $qty;
             if ($next > 99999999999999) {
@@ -197,7 +197,7 @@ final class ToirStockController extends Controller
             $this->movement($company, $request, $item, null, 'receipt', $qty, $qty, 0, $v['note'] ?? '');
 
             return $item->refresh();
-        }, 3);
+        }, 5);
 
         return response()->json(['data' => $item]);
     }
@@ -213,7 +213,7 @@ final class ToirStockController extends Controller
             'stock_item_id' => ['required', 'integer',
                 Rule::exists('toir_stock_items', 'id')->where('company_id', $company->id)],
         ]);
-        $result = DB::transaction(function () use ($request, $company, $id, $v) {
+        $result = ToirTransaction::run(function () use ($request, $company, $id, $v) {
             $supply = ToirSupply::where('company_id', $company->id)
                 ->lockForUpdate()->findOrFail($id);
             if ($supply->status === 'delivered') {
@@ -247,7 +247,7 @@ final class ToirStockController extends Controller
             $supply->save();
 
             return ['item' => $item->refresh(), 'created' => true];
-        }, 3);
+        }, 5);
 
         return response()->json(['data' => $result['item'], 'created' => $result['created']],
             $result['created'] ? 201 : 200);
@@ -277,7 +277,7 @@ final class ToirStockController extends Controller
             'quantity' => self::QTY,
         ]);
         $qty = self::milli((string) $v['quantity']);
-        $result = DB::transaction(function () use ($company, $request, $id, $v, $qty) {
+        $result = ToirTransaction::run(function () use ($company, $request, $id, $v, $qty) {
             $order = ToirWorkOrder::where('company_id', $company->id)->lockForUpdate()->findOrFail($id);
             $this->operator($company, $request, $order);
             abort_if(in_array($order->status, ['closed', 'awaiting_acceptance'], true), 409, 'Закрытый наряд нельзя изменять.');
@@ -358,7 +358,7 @@ final class ToirStockController extends Controller
             $event->save();
 
             return ['line' => $line->load('item'), 'item' => $item->refresh()];
-        }, 3);
+        }, 5);
 
         return response()->json(['data' => $result]);
     }

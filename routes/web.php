@@ -112,3 +112,6 @@ Route::prefix('api/v1')->group(function (): void {
         });
     });
 });
+
+// Independently scoped MRO commercial and public routes.
+require __DIR__.'/mro_commercial.php';
