@@ -57,7 +57,8 @@ npm run build
 
 ## Параметры
 - `TOIR_FRONTEND_URL=https://platform.itpmining.kz/mro`
-- `MRO_SUBSCRIPTIONS_ENABLED=true`
+- `MRO_PUBLIC_REGISTRATION_ENABLED=false (только после публикации оферты и privacy)
+- MRO_SUBSCRIPTIONS_ENABLED=true`
 - `MRO_SUBSCRIPTION_ENFORCEMENT_ENABLED=false`
 - `MRO_BILLING_ENABLED=false`
 - `MRO_PAYMENT_COLLECTION_ENABLED=false`

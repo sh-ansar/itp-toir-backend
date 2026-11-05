@@ -29,6 +29,7 @@ Route::prefix('api/v1')->group(function (): void {
     Route::middleware('auth')->group(function (): void {
         Route::get('/platform-admin/access', function (Request $request) {
             abort_unless(PlatformAdminAccess::allowed($request->user()), 403);
+
             return response()->json(['allowed' => true]);
         });
         Route::prefix('platform-admin')->group(function (): void {
@@ -37,7 +38,7 @@ Route::prefix('api/v1')->group(function (): void {
             Route::get('/organizations', [$c, 'organizations']);
             Route::get('/organizations/{company}', [$c, 'organization'])->whereNumber('company');
             Route::get('/organizations/{company}/users', [$c, 'users'])->whereNumber('company');
-            Route::post('/organizations/{company}/users/{user}/resend', [$c, 'resend'])->whereNumber(['company','user'])->middleware('throttle:5,1');
+            Route::post('/organizations/{company}/users/{user}/resend', [$c, 'resend'])->whereNumber(['company', 'user'])->middleware('throttle:5,1');
             Route::put('/organizations/{company}/subscription', [$c, 'assign'])->whereNumber('company');
             Route::put('/organizations/{company}/billing', [$c, 'saveBuyer'])->whereNumber('company');
             Route::get('/plans', [$c, 'plans']);

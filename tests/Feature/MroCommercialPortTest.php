@@ -4,10 +4,13 @@ namespace Tests\Feature;
 
 use App\Models\Company;
 use App\Models\User;
-use App\Services\MroCommercial\{InvoiceService,LegalDocumentService,PlanCatalogService,PlatformAdminAccess};
+use App\Services\MroCommercial\InvoiceService;
+use App\Services\MroCommercial\PlanCatalogService;
+use App\Services\MroCommercial\PlatformAdminAccess;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 class MroCommercialPortTest extends TestCase
@@ -42,6 +45,28 @@ class MroCommercialPortTest extends TestCase
             'limits' => ['users' => 20, 'companies' => 1, 'storage_bytes' => 1073741824, 'max_file_bytes' => 36700160],
             'modules' => array_fill_keys(app(PlanCatalogService::class)->modules(), true),
         ];
+    }
+
+    private function legalSignupVersions(): array
+    {
+        $items = [];
+        foreach (['offer', 'privacy'] as $type) {
+            $hash = hash('sha256', 'QA-mro-'.$type);
+            $id = DB::table('mro_legal_versions')->insertGetId([
+                'type' => $type, 'locale' => 'ru', 'jurisdiction' => 'KZ',
+                'version' => 1, 'status' => 'published',
+                'title' => 'QA '.ucfirst($type),
+                'body' => str_repeat('Only synthetic QA legal content. ', 5),
+                'operator_snapshot' => '{}', 'sha256' => $hash,
+                'acceptance' => 'accepted', 'required' => true,
+                'effective_at' => now()->subDay(),
+                'published_at' => now()->subDay(),
+                'created_at' => now(), 'updated_at' => now(),
+            ]);
+            $items[] = ['id' => $id, 'sha256' => $hash, 'type' => $type];
+        }
+
+        return $items;
     }
 
     public function test_public_catalog_and_legal_are_accessible_anonymously(): void
@@ -91,15 +116,18 @@ class MroCommercialPortTest extends TestCase
         ], $user->id);
         $this->assertSame('draft', $draft->status);
         $this->assertStringStartsWith('%PDF', $service->preview($draft->id));
-        $this->expectException(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+        $this->expectException(HttpException::class);
         $service->issue($draft->id, $user->id);
     }
 
     public function test_start_registration_does_not_create_an_account(): void
     {
+        config(['mro_commercial.public_registration_enabled' => true]);
+        $this->legalSignupVersions();
         Mail::fake();
         $this->postJson('/api/v1/public/register/start', [
             'name' => 'New Owner', 'email' => 'fresh@mro.test', 'company_name' => 'Fresh Co', 'consent' => true, 'locale' => 'en',
+            'legal_choices' => ['offer' => true, 'privacy' => true],
         ])->assertStatus(202);
         $this->assertDatabaseMissing('users', ['email' => 'fresh@mro.test']);
         $this->assertDatabaseHas('mro_signup_requests', ['email' => 'fresh@mro.test']);
@@ -107,10 +135,13 @@ class MroCommercialPortTest extends TestCase
 
     public function test_verify_registration_creates_just_one_company_and_owner(): void
     {
+        config(['mro_commercial.public_registration_enabled' => true]);
+        $versions = $this->legalSignupVersions();
         $token = str_repeat('a', 80);
         DB::table('mro_signup_requests')->insert([
             'email' => 'new@mro.test', 'name' => 'New Owner', 'company_name' => 'New QA Company',
             'plan_code' => 'mro-base', 'token_hash' => hash('sha256', $token),
+            'legal_snapshot' => json_encode(['locale' => 'ru', 'versions' => $versions, 'choices' => ['offer' => true, 'privacy' => true]]),
             'expires_at' => now()->addMinutes(20), 'created_at' => now(), 'updated_at' => now(),
         ]);
         $this->postJson('/api/v1/public/register/verify', [
@@ -121,10 +152,29 @@ class MroCommercialPortTest extends TestCase
         $this->assertSame('owner', $owner->companies()->firstOrFail()->pivot->role);
         $this->getJson('/api/v1/auth/me')->assertOk()->assertJsonPath('data.user.id', $owner->id);
         $this->assertDatabaseCount('mro_signup_requests', 0);
+        $this->assertDatabaseCount('mro_legal_consents', 2);
+    }
+
+    public function test_public_registration_is_gated_on_legal_publication(): void
+    {
+        Mail::fake();
+        $payload = [
+            'name' => 'New Person', 'email' => 'newperson@mro.test',
+            'company_name' => 'Legal QA Co', 'consent' => true, 'locale' => 'ru',
+            'legal_choices' => ['offer' => true, 'privacy' => true],
+        ];
+        $this->postJson('/api/v1/public/register/start', $payload)->assertStatus(503);
+        config(['mro_commercial.public_registration_enabled' => true]);
+        $this->postJson('/api/v1/public/register/start', $payload)->assertStatus(409);
+        $this->legalSignupVersions();
+        $this->postJson('/api/v1/public/register/start', $payload)->assertStatus(202);
+        $this->assertDatabaseCount('users', 0);
+        $this->assertDatabaseCount('companies', 0);
     }
 
     public function test_invalid_token_never_creates_tenant(): void
     {
+        config(['mro_commercial.public_registration_enabled' => true]);
         $this->postJson('/api/v1/public/register/verify', [
             'token' => str_repeat('z', 80), 'password' => 'Strong!123456789',
             'password_confirmation' => 'Strong!123456789',
