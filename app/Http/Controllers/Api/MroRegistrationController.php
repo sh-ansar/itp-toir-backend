@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rule;
 
 final class MroRegistrationController extends Controller
 {
@@ -27,6 +28,7 @@ final class MroRegistrationController extends Controller
             'company_name' => ['required', 'string', 'min:2', 'max:200'],
             'plan' => ['nullable', 'string', 'max:40', 'regex:/^[a-z0-9_-]+$/'],
             'consent' => ['required', 'accepted'],
+            'locale' => ['nullable', Rule::in(['ru','en','ka','ge','de','fr','es'])],
         ]);
         abort_unless(app(ToirMailReadiness::class)->configured(), 503, 'Email delivery is not configured');
         $email = Str::lower(trim($data['email']));
@@ -45,12 +47,21 @@ final class MroRegistrationController extends Controller
         });
         $frontend = rtrim((string) config('mro_commercial.frontend_url'), '/');
         $url = $frontend.'/register/verify?token='.rawurlencode($token);
+        $locale = ($data['locale'] ?? 'ru') === 'ka' ? 'ge' : ($data['locale'] ?? 'ru');
+        $mailTexts = [
+            'ru' => ['Подтвердите регистрацию в ITP ТОиР.', 'Ссылка действительна 45 минут:', 'Если вы не запрашивали регистрацию, проигнорируйте это письмо.', 'ITP ТОиР — подтверждение почты'],
+            'en' => ['Confirm your registration for ITP MRO.', 'Your verification link is valid for 45 minutes:', 'If you did not request an account, ignore this message.', 'ITP MRO — verify your email'],
+            'ge' => ['დაადასტურეთ რეგისტრაცია ITP ТОиР-ში.', 'დადასტურების ბმული მოქმედებს 45 წუთი:', 'თუ რეგისტრაცია არ მოგითხოვიათ, უგულებელყავით ეს წერილი.', 'ITP ТОиР — ელფოსტის დადასტურება'],
+            'de' => ['Bestätigen Sie Ihre Registrierung für ITP MRO.', 'Der Link ist 45 Minuten gültig:', 'Falls Sie keine Registrierung angefordert haben, ignorieren Sie diese Nachricht.', 'ITP MRO — E-Mail bestätigen'],
+            'fr' => ['Confirmez votre inscription à ITP MRO.', 'Ce lien est valable 45 minutes :', 'Si vous n’avez pas demandé de compte, ignorez ce message.', 'ITP MRO — vérification de l’e-mail'],
+            'es' => ['Confirme su registro en ITP MRO.', 'El enlace es válido durante 45 minutos:', 'Si no solicitó una cuenta, ignore este mensaje.', 'ITP MRO — confirmar correo electrónico'],
+        ];
+        $messageParts = $mailTexts[$locale] ?? $mailTexts['ru'];
         try {
             Mail::raw(
-                "Подтвердите регистрацию в ITP ТОиР.\n\nСсылка действительна 45 минут:\n".
-                $url."\n\nЕсли вы не запрашивали регистрацию, проигнорируйте это письмо.",
-                function ($message) use ($email) {
-                    $message->to($email)->subject('ITP ТОиР — подтверждение почты');
+                $messageParts[0]."\n\n".$messageParts[1]."\n".$url."\n\n".$messageParts[2],
+                function ($message) use ($email, $messageParts) {
+                    $message->to($email)->subject($messageParts[3]);
                 }
             );
         } catch (\Throwable $exception) {

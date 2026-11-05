@@ -99,7 +99,7 @@ class MroCommercialPortTest extends TestCase
     {
         Mail::fake();
         $this->postJson('/api/v1/public/register/start', [
-            'name' => 'New Owner', 'email' => 'fresh@mro.test', 'company_name' => 'Fresh Co', 'consent' => true,
+            'name' => 'New Owner', 'email' => 'fresh@mro.test', 'company_name' => 'Fresh Co', 'consent' => true, 'locale' => 'en',
         ])->assertStatus(202);
         $this->assertDatabaseMissing('users', ['email' => 'fresh@mro.test']);
         $this->assertDatabaseHas('mro_signup_requests', ['email' => 'fresh@mro.test']);
@@ -130,5 +130,64 @@ class MroCommercialPortTest extends TestCase
             'password_confirmation' => 'Strong!123456789',
         ])->assertUnprocessable();
         $this->assertDatabaseCount('companies', 0);
+    }
+
+    public function test_mro_grant_management_isolated_from_portal_admin_tables(): void
+    {
+        [$admin, $company] = $this->owner();
+        $this->manager($admin);
+        $member = User::factory()->create([
+            'email' => 'technician@mro.test', 'is_active' => true, 'email_verified_at' => now(),
+        ]);
+        $company->users()->attach($member->id, ['role' => 'technician', 'is_active' => true]);
+        $this->actingAs($admin)->withSession(['toir_company_id' => $company->id]);
+        $this->postJson('/api/v1/platform-admin/grants', [
+            'user_id' => $member->id, 'permission' => 'billing.read',
+        ])->assertOk()->assertJsonPath('status', 'granted');
+        $this->getJson('/api/v1/platform-admin/grants')->assertOk()->assertJsonFragment([
+            'user_id' => $member->id, 'permission' => 'billing.read',
+        ]);
+        $grant = DB::table('mro_admin_grants')
+            ->where('user_id', $member->id)->where('permission', 'billing.read')->firstOrFail();
+        $this->deleteJson('/api/v1/platform-admin/grants/'.$grant->id)
+            ->assertOk()->assertJsonPath('status', 'revoked');
+        $this->assertDatabaseMissing('mro_admin_grants', ['id' => $grant->id]);
+        $managerGrant = DB::table('mro_admin_grants')->where('user_id', $admin->id)
+            ->where('permission', 'platform.manage')->firstOrFail();
+        $this->deleteJson('/api/v1/platform-admin/grants/'.$managerGrant->id)
+            ->assertStatus(409);
+        $outsideUser = User::factory()->create([
+            'email' => 'outside@mro.test', 'is_active' => true, 'email_verified_at' => now(),
+        ]);
+        $this->postJson('/api/v1/platform-admin/grants', [
+            'user_id' => $outsideUser->id, 'permission' => 'billing.read',
+        ])->assertStatus(422);
+        DB::table('company_user')->where('company_id', $company->id)
+            ->where('user_id', $admin->id)->update(['is_active' => false]);
+        $this->getJson('/api/v1/platform-admin/overview')->assertForbidden();
+
+    }
+
+    public function test_super_admin_invoice_draft_accepts_mro_company_id(): void
+    {
+        [$admin, $company] = $this->owner();
+        $this->manager($admin);
+        app(InvoiceService::class)->saveProfile([
+            'legal_name' => 'QA Maintenance', 'registration_number' => '990001',
+            'address' => 'QA Astana', 'bank' => 'Test bank', 'iban' => 'KZ00000',
+            'bic' => 'QADEMO01', 'signatory' => 'QA Director', 'currency' => 'KZT',
+            'tax_basis_points' => 0, 'tax_label' => 'Tax excluded',
+            'valid_days' => 30, 'prefix' => 'MRO', 'service_name' => 'MRO services',
+        ], null, $admin->id);
+        $this->actingAs($admin)->withSession(['toir_company_id' => $company->id]);
+        $this->postJson('/api/v1/platform-admin/invoices', [
+            'company_id' => $company->id,
+            'items' => [['description' => 'Maintenance subscription', 'quantity' => 1, 'unit_minor' => 125000]],
+            'period_from' => today()->toDateString(),
+            'period_to' => today()->addMonth()->toDateString(),
+            'due_date' => today()->addDays(15)->toDateString(),
+            'basis' => 'QA invoice draft',
+        ])->assertCreated()->assertJsonPath('data.company_id', $company->id)
+            ->assertJsonPath('data.status', 'draft');
     }
 }
